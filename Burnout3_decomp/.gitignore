@@ -1,0 +1,17 @@
+# Never commit anything derived byte-for-byte from the game or proprietary tools.
+# See the publish rule in ../ROADMAP.md.
+/orig/
+/asm/
+/assets/
+/build/
+/compilers/
+/tools/bin/
+/.venv/
+build.ninja
+.ninja_*
+objdiff.json
+*.iso
+*.ISO
+*.elf
+*.o
+__pycache__/
