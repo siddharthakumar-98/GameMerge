@@ -1,0 +1,9 @@
+[workspace]
+members = ["tools/iso_extract"]
+
+[package]
+name = "burnout3"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]

@@ -1,0 +1,6 @@
+/target
+/extracted
+*.iso
+*.ISO
+*.DAT
+*.BIN
