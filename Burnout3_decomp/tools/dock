@@ -1,0 +1,7 @@
+#!/bin/sh
+# Run a command inside the b3-build container with this directory mounted at /work.
+#   tools/dock python3 configure.py
+#   tools/dock ninja
+set -e
+here=$(cd "$(dirname "$0")/.." && pwd)
+exec docker run --rm --platform linux/amd64 -v "$here":/work -w /work b3-build "$@"

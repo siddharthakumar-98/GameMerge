@@ -1,0 +1,57 @@
+# splat config for Burnout 3: Takedown (NTSC-U, SLUS-210.50, VER 1.00).
+# Input is the raw load segment of the ELF (see tools/elf.py extract), loaded at 0x100000.
+# Boundaries were recovered by hand from the merged PT_LOAD; see docs/layout.md.
+name: Burnout 3 Takedown (SLUS-210.50)
+sha1: 817cfb412af2d81d4b5fda7b57837b4e28442dfc
+options:
+  basename: SLUS_210.50
+  target_path: orig/SLUS_210.50.rom
+  elf_path: build/SLUS_210.50.elf
+  base_path: ..
+  platform: ps2
+  compiler: MWCCPS2
+
+  gp_value: 0x004E8670
+
+  asm_path: asm
+  src_path: src
+  build_path: build
+  asset_path: assets
+
+  ld_script_path: build/SLUS_210.50.ld
+  ld_dependencies: False
+  ld_bss_contains_common: True
+
+  create_asm_dependencies: False
+  find_file_boundaries: False
+  o_as_suffix: True
+
+  symbol_addrs_path:
+    - config/symbol_addrs.txt
+  undefined_funcs_auto_path: build/undefined_funcs_auto.txt
+  undefined_syms_auto_path: build/undefined_syms_auto.txt
+
+  string_encoding: ASCII
+  data_string_encoding: ASCII
+  rodata_string_guesser_level: 2
+  data_string_guesser_level: 2
+
+  section_order: [.text, .data, .rodata, .ctor, .sdata, .sbss, .bss]
+
+segments:
+  - name: main
+    type: code
+    start: 0x000000
+    vram: 0x00100000
+    bss_size: 0x19EC380
+    subsegments:
+      - [0x000000, asm, text]         # .text: crt0, game, RenderWare, libsce, MW runtime
+      - [0x369E00, textbin, vutext]   # VU microcode uploaded through DMA/VIF MPG chains
+      - [0x383F00, data, data]        # .data/.rodata: libsce tags, strings, jump tables, libkernl patch blob
+      # sinit, ctor and data_tail share the .ctor ordering bucket so the linker keeps them in this order.
+      - { start: 0x3D3E00, type: asm, name: sinit, linker_section_order: .ctor }  # C++ static initializers (__sinit_*)
+      - [0x3DD820, ctor, ctor]        # constructor table, null-terminated, padded to 16
+      - { start: 0x3DDAA0, type: data, name: data_tail, linker_section_order: .ctor }
+      - [0x3E0680, sdata, sdata]      # small data, _gp - 0x7FF0
+      - { type: bss, vram: 0x004E2680, name: bss }
+  - [0x3E2680]
