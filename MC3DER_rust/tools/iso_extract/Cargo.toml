@@ -1,8 +1,5 @@
-[workspace]
-members = ["tools/iso_extract"]
-
 [package]
-name = "mc3der"
+name = "iso_extract"
 version = "0.1.0"
 edition = "2021"
 
