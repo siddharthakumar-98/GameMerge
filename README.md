@@ -1,18 +1,34 @@
 # GameMerge
 
-**Burnout 3: Takedown's gameplay inside Midnight Club 3: DUB Edition Remix.**
+**Burnout 3: Takedown, decompiled and rewritten in Rust, on the way to merging it with Midnight Club 3.**
 
-GameMerge is a passthrough mod for PS2 games running in PCSX2. Midnight Club 3 is the host: its city, cars, rendering and controls stay. Burnout 3 runs hidden alongside it and supplies takedowns, boost, Impact Time slow-mo, the takedown cam, aftertouch, Road Rage and Crash mode. A Rust bridge passes data between the two games in real time.
+> Full plan and progress: **[ROADMAP.md](ROADMAP.md)**
 
-The project gets there in three stages:
+## Status
 
-1. **Stage A, matching decomps.** Both games are decompiled back into C/C++ that the original compiler builds into a byte-identical executable. Burnout 3 is first (Metrowerks CodeWarrior, RenderWare 3.6).
-2. **Stage B, Rust rewrites.** Each game is rewritten in Rust from its finished decomp, keeping the original behavior exactly.
-3. **Stage C, GameMerge.** The passthrough mod, built on the decomps' addresses and structs and on the Burnout 3 Rust gameplay core.
+> **Done:** Burnout 3 matching build (byte-identical, from assembly) · **Currently:** verifying it in PCSX2 and
+> decompiling to C · **Next:** Rust rewrite of Burnout 3
 
-> **Status:** Stage A, Burnout 3 decomp environment setup. Nothing is playable yet. See [ROADMAP.md](ROADMAP.md), the single source of truth for plan and progress.
+## Plan
 
-## How it works
+1. **Decompile Burnout 3** (active, in [`Burnout3_decomp/`](Burnout3_decomp/README.md)). This produces C/C++ that
+   the original CodeWarrior compiler builds into a byte-identical `SLUS_210.50`. The build pipeline already reproduces
+   the original exactly from assembly. Next come verifying it in PCSX2 and converting its 8,948 functions to C.
+2. **Rewrite Burnout 3 in Rust** (next, in [`Burnout3_rust/`](Burnout3_rust/README.md)). A native port of the finished
+   decomp that plays the same, loads assets from your own disc, and is verified against the decomp function by
+   function and frame by frame.
+
+Midnight Club 3: DUB Edition Remix gets the same two steps (decomp, then Rust rewrite) once its game files are
+available. That work is coming soon.
+
+## Long-term goal: GameMerge
+
+Once both games are done, GameMerge brings Burnout 3's gameplay into Midnight Club 3 as a passthrough mod for PCSX2.
+Midnight Club 3 is the host: its city, cars, rendering and controls stay. Burnout 3 runs hidden alongside it and
+supplies takedowns, boost, Impact Time slow-mo, the takedown cam, aftertouch, Road Rage and Crash mode. A Rust bridge
+passes data between the two games in real time.
+
+### How it works
 
 ```
  PCSX2 #1 (visible)                         PCSX2 #2 (hidden, null renderer)
@@ -30,7 +46,7 @@ The project gets there in three stages:
 
 Inspired by chasm's [SkyCraft](https://github.com/chasmlol/SkyCraft) and the video [*The Next Generation of Modding*](https://youtu.be/zRT3MyFwgu0).
 
-## Planned features
+### Planned features
 
 - [ ] Boost bar earned from driving (drafting, near misses, oncoming, drifts, air)
 - [ ] Takedowns on Midnight Club opponents and traffic: Slam, Grind, Shunt, Wall and Traffic Check
@@ -61,22 +77,9 @@ Memory addresses differ between regions and revisions. Other builds are not supp
 
 | Path | What it is |
 |---|---|
-| `Burnout3_decomp/` | Burnout 3 matching decomp (C/C++, CodeWarrior), Stage A |
-| `Burnout3_rust/` | Burnout 3 Rust rewrite, Stage B, plus the ISO extractor |
-| `MC3DER_rust/` | Midnight Club 3 Rust rewrite, Stage B (its decomp, `MC3DER_decomp/`, comes later) |
-
-GameMerge crates (planned, Stage C):
-
-| Path | What it is |
-|---|---|
-| `crates/gm-protocol` | Shared `#[repr(C)]` data layout between host, guest and bridge |
-| `crates/gm-pine` | PCSX2 PINE client |
-| `crates/mc3-sys`, `crates/b3-sys` | Memory layouts and addresses generated from the decomps |
-| `crates/gm-core` | Burnout 3's gameplay systems, from the Rust rewrite |
-| `crates/gm-bridge` | The passthrough bridge |
-| `crates/gm-hostmod` | Code injected into Midnight Club 3 |
-| `crates/gm-guestpatch` | Patches that run Burnout 3 headless as a guest |
-| `crates/gm-tools` | Address validation, scenario runner, test simulators |
+| `Burnout3_decomp/` | Burnout 3 matching decomp (C/C++, CodeWarrior), phase 1 |
+| `Burnout3_rust/` | Burnout 3 Rust rewrite, phase 2, plus the ISO extractor |
+| `MC3DER_rust/` | Midnight Club 3 Rust rewrite (future) |
 
 ## Legal
 
@@ -90,3 +93,7 @@ Midnight Club is a trademark of Take-Two Interactive / Rockstar Games. Burnout i
 - The [Reburn 3](https://forum.mattkc.com/) community: Burnout 3 reverse engineering
 - [PCSX2](https://github.com/PCSX2/pcsx2) and its PINE IPC
 - chasm's [SkyCraft](https://github.com/chasmlol/SkyCraft) for the passthrough architecture
+
+---
+
+See **[ROADMAP.md](ROADMAP.md)** for the full plan, milestones and testing.
