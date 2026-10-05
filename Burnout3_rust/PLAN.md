@@ -1,13 +1,11 @@
-# Burnout 3: Takedown: ISO findings and reference-decompilation plan
+# Burnout 3: Takedown: ISO findings and asset formats
 
 ## Context
-The goal is a Rust rewrite of Burnout 3: Takedown in `GameMerge/Burnout3_rust`. The source is
-`~/Desktop/ps2 games/Burnout 3 - Takedown (USA).iso`, in the same folder as the Midnight Club 3 ISO. Like
-`MC3DER_rust`, this is a **reference decomp**: understand the original code and data formats well enough to write
-specs, then build the Rust version clean from those specs. It is not a byte-matching decomp.
+This file records what is on the Burnout 3: Takedown disc and the asset formats the Rust rewrite has to read. The
+plan and status live in [../ROADMAP.md](../ROADMAP.md): first a byte-matching C/C++ decomp in
+[../Burnout3_decomp](../Burnout3_decomp) (Stage A1), then this Rust rewrite from the finished decomp (Stage B1).
 
-This repo also feeds GameMerge. The Burnout systems that GameMerge needs (takedowns, boost, Impact Time, aftertouch,
-Road Rage, Crash mode) are the same ones this rewrite has to rebuild, so they come first. See [../ROADMAP.md](../ROADMAP.md).
+The source disc is `~/Desktop/ps2_games/Burnout 3 - Takedown (USA).iso`. Nothing from it is committed.
 
 ## What the ISO contains (verified read-only)
 - **Disc:** SLUS-210.50 (NTSC-U), `VER = 1.00`, `VMODE = NTSC`. It is a **single-layer DVD-5** (2.87 GB), so unlike
@@ -55,22 +53,17 @@ Road Rage, Crash mode) are the same ones this rewrite has to rebuild, so they co
   - **IOP modules** (`.irx`, MIPS R3000).
   - The US disc ships English text (`GLOBALUS.BIN`, `HEADUS.BIN`).
 
-## Plan
+## Extracting the disc
+`tools/iso_extract` reads ISO9660 on both layers, and on this single-layer disc it simply finds no layer 1.
 
-### Phase 0: Toolchain (on the Mac)
-- Ghidra 11.x plus the **ghidra-emotionengine-reloaded** extension (R5900, VU and IOP support).
-- PCSX2 2.x (macOS build) for runtime tracing, with its debugger, memory search and breakpoints.
-- Python 3 for one-off scripts. Durable tools go into Rust (see Phase 2).
-- Keep the ISO and extracted files **outside git**. `.gitignore` covers `/extracted`, `*.iso`, `*.DAT` and `*.BIN`.
+```bash
+cargo run --release -p iso_extract -- extract ~/Desktop/ps2_games/"Burnout 3 - Takedown (USA).iso" extracted
+```
 
-### Phase 1: Extraction tool (Rust, in repo)
-- `tools/iso_extract` is copied from `MC3DER_rust`. It reads ISO9660 on both layers, and on this single-layer disc it
-  simply finds no layer 1.
-- Run: `cargo run --release -p iso_extract -- extract "../../ps2 games/Burnout 3 - Takedown (USA).iso" extracted`.
-- Verify: 775 files and 2,865,038,650 bytes, matching the listing above, and the hashes above match.
+Expect 775 files and 2,865,038,650 bytes, and the hashes above.
 
-### Phase 2: Asset formats (in parallel with Phase 3)
-Create a `formats` crate. Each format gets a parser, a round-trip test and a short spec in `docs/formats/`:
+## Asset formats (for the Stage B `formats` crate)
+Each format gets a parser, a round-trip test and a short spec in `docs/formats/`:
 1. **RenderWare binary stream:** the 12-byte chunk header (type, size, library version) and the nested chunk tree.
    Everything else builds on this.
 2. **Textures (`.TXD`):** RenderWare PS2 texture dictionaries, with GS pixel formats, palettes and swizzling. Export to PNG.
@@ -87,50 +80,8 @@ Create a `formats` crate. Each format gets a parser, a round-trip test and a sho
    engineering is needed.
 8. **Keyframes (`.KFS`):** camera or replay keyframe sequences (the ELF references `Data\Replay.kfs`).
 
-### Phase 3: Code reference decomp (Ghidra)
-1. Load `SLUS_210.50` with the EE plugin. Apply PS2SDK/libsce signatures so Sony library functions (sce*, libgraph,
-   libpad, libsd) are named automatically.
-2. **Name RenderWare first.** RenderWare 3.6 is public-ish middleware with a known API (`RwEngineInit`,
-   `RpWorldCreate`, `RwTexDictionaryStreamRead`...). Match it with string anchors from the `$Id:` paths, error strings
-   and plugin IDs. That leaves the Burnout game code as the unnamed remainder.
-3. Anchor the game code with the tuning-menu labels. The code that registers each label most likely
-   sits next to the variable it edits, so its cross-references should lead to the boost, scoring, takedown, physics, AI and camera code.
-4. Map the subsystems in this order:
-   - **File I/O and track/vehicle loading**
-   - **Main loop and game state machine**
-   - **Vehicle physics and tuning** (the core of the feel)
-   - **Takedowns, boost and scoring** (`Score/*`, `AI/Aggressive Driving/*`)
-   - **Crash, Impact Time, aftertouch and crash cameras** (`Crash/HandyCam`, `InGame/Effect/*`)
-   - **Game modes:** Race, Road Rage, Crash (pickups, multipliers, Crashbreaker), Eliminator, Burning Lap, Face-Off
-   - AI/traffic, camera, renderer and audio
-5. Write findings into `docs/re/<subsystem>.md`: struct layouts, constants and pseudo-code. Rust is written from these
-   docs, not from pasted decompiler output.
-6. Check against PCSX2: breakpoints and memory watches confirm constants and struct fields. Cross-check known
-   CodeBreaker/pnach addresses and Reburn community notes.
-
-### Phase 4: Rust rewrite scaffold
-Convert the root package into crates:
-- `formats` (Phase 2)
-- `engine` (renderer via `wgpu`, audio, input)
-- `game` (logic ported from the RE docs). Its `no_std` core (takedowns, boost, crash scoring) is designed to be shared
-  with GameMerge's `gm-core`.
-- `tools/*`
-
-Milestones:
-1. Load a track from the original assets and fly a camera through it.
-2. A drivable car with the original tuning values from `VDB.XML`.
-3. Boost, near misses and takedowns against AI racers and traffic.
-4. Crash mode at one junction, with pickups, multipliers and Crashbreaker.
-5. UI, Road Rage and the World Tour career.
+Format knowledge is confirmed against the matched decomp's loaders as Stage A progresses.
 
 ## Legal note
-Ship only original Rust code. The game data is read at runtime from the user's own disc, and nothing from the ISO is
-committed.
-
-## Verification
-- `cargo test` in the workspace: format parsers round-trip on the extracted files, and extraction counts and sizes
-  match the ISO listing.
-- Spot-check: extracted textures render to PNG correctly, `.M2V` files play, and `VDB.XML` dumps to readable values
-  with labels from the ELF.
-- Physics and scoring: the Rust car's acceleration, top speed and boost earned per near miss match PCSX2 measurements
-  within tolerance.
+Game data is read at runtime from the user's own disc, and nothing from the ISO is committed. See the publish rule in
+[../ROADMAP.md](../ROADMAP.md).

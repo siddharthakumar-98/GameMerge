@@ -2,12 +2,13 @@
 
 **A Rust rewrite of Burnout 3: Takedown (PS2, NTSC-U).**
 
-This is a reference decomp: the original game's code and data formats are studied in Ghidra and PCSX2, written up as
-specs, and then rebuilt in clean Rust from those specs. It is the Burnout half of
-[GameMerge](../README.md), next to [MC3DER_rust](../MC3DER_rust), and its gameplay core (takedowns, boost, crash
-scoring) is meant to be shared with GameMerge's `gm-core`.
+This rewrite is ported from the byte-matching C/C++ decomp in [../Burnout3_decomp](../Burnout3_decomp) once that
+decomp is complete. It keeps the original behavior exactly and uses idiomatic Rust wherever that doesn't change
+gameplay. It is part of [GameMerge](../README.md), next to [MC3DER_rust](../MC3DER_rust), and its gameplay core
+(takedowns, boost, crash scoring) becomes GameMerge's `gm-core`.
 
-> **Status:** early planning. The only working piece is the ISO extractor. See [PLAN.md](PLAN.md).
+> **Status:** waiting on the decomp (Stage A1). The only working piece is the ISO extractor. See
+> [../ROADMAP.md](../ROADMAP.md) for the plan and [PLAN.md](PLAN.md) for disc findings.
 
 ## Supported build
 
@@ -32,7 +33,7 @@ Full findings are in [PLAN.md](PLAN.md).
 
 Requirements:
 - Rust (stable is enough for now)
-- Your own dump of the game, placed in `~/Desktop/ps2 games/`
+- Your own dump of the game, placed in `~/Desktop/ps2_games/`
 
 Build and check the toolchain:
 
@@ -43,13 +44,13 @@ cargo run
 List the files on the disc:
 
 ```bash
-cargo run --release -p iso_extract -- list "../../ps2 games/Burnout 3 - Takedown (USA).iso"
+cargo run --release -p iso_extract -- list ~/Desktop/ps2_games/"Burnout 3 - Takedown (USA).iso"
 ```
 
 Extract everything into `extracted/` (gitignored, about 2.9 GB):
 
 ```bash
-cargo run --release -p iso_extract -- extract "../../ps2 games/Burnout 3 - Takedown (USA).iso" extracted
+cargo run --release -p iso_extract -- extract ~/Desktop/ps2_games/"Burnout 3 - Takedown (USA).iso" extracted
 ```
 
 Use `--only <substring>` to extract part of the disc, for example `--only SLUS_210 --only DATA/`.
@@ -66,15 +67,16 @@ cargo test --workspace
 |---|---|
 | `src/main.rs` | Placeholder binary for the rewrite |
 | `tools/iso_extract` | ISO9660 lister and extractor (shared design with `MC3DER_rust`) |
-| `PLAN.md` | ISO findings and the reverse-engineering and rewrite plan |
+| `PLAN.md` | ISO findings and asset formats |
 
-Planned: `formats` (asset parsers), `engine` (wgpu renderer, audio, input), `game` (gameplay logic) and
-`docs/{formats,re}` (specs).
+Planned (Stage B1): `formats`, `ee` (EE float semantics), `game` (no_std gameplay core), `rw` (RenderWare runtime
+replacement) and `engine` (wgpu, audio, input).
 
 ## Legal
 
-This repo contains **no game code, assets, BIOS or disc images**, and never will. You need your own legally obtained
-copy of the game. Only original Rust code and documentation are published here.
+This directory contains **no game executables, assets, BIOS or disc images**, and never will. You need your own
+legally obtained copy of the game, which is read at runtime. The decompiled C/C++ lives in `../Burnout3_decomp`
+under the publish rule in [../ROADMAP.md](../ROADMAP.md).
 
 Burnout is a trademark of Electronic Arts. RenderWare is a trademark of Criterion Software. This is an unofficial
 fan project with no affiliation to either.

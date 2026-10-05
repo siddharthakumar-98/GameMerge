@@ -2,9 +2,15 @@
 
 **Burnout 3: Takedown's gameplay inside Midnight Club 3: DUB Edition Remix.**
 
-GameMerge is a passthrough mod for PS2 games running in PCSX2. Midnight Club 3 is the host: its city, cars, rendering and controls stay. Burnout 3 runs hidden alongside it and supplies takedowns, boost, Impact Time slow-mo, the takedown cam, aftertouch, Road Rage and Crash mode. A Rust bridge passes data between the two games in real time. Each Burnout system is also being reverse engineered and rewritten in Rust, so the mod can eventually run with no second game at all.
+GameMerge is a passthrough mod for PS2 games running in PCSX2. Midnight Club 3 is the host: its city, cars, rendering and controls stay. Burnout 3 runs hidden alongside it and supplies takedowns, boost, Impact Time slow-mo, the takedown cam, aftertouch, Road Rage and Crash mode. A Rust bridge passes data between the two games in real time.
 
-> **Status:** early planning / reverse-engineering. Nothing is playable yet. See [ROADMAP.md](ROADMAP.md).
+The project gets there in three stages:
+
+1. **Stage A, matching decomps.** Both games are decompiled back into C/C++ that the original compiler builds into a byte-identical executable. Burnout 3 is first (Metrowerks CodeWarrior, RenderWare 3.6).
+2. **Stage B, Rust rewrites.** Each game is rewritten in Rust from its finished decomp, keeping the original behavior exactly.
+3. **Stage C, GameMerge.** The passthrough mod, built on the decomps' addresses and structs and on the Burnout 3 Rust gameplay core.
+
+> **Status:** Stage A, Burnout 3 decomp environment setup. Nothing is playable yet. See [ROADMAP.md](ROADMAP.md), the single source of truth for plan and progress.
 
 ## How it works
 
@@ -45,28 +51,36 @@ Memory addresses differ between regions and revisions. Other builds are not supp
 
 ## Requirements
 
-- [PCSX2](https://pcsx2.net) 2.x with PINE enabled
+- [PCSX2](https://pcsx2.net) 2.x (PINE enabled for GameMerge)
 - A PS2 BIOS dumped from your own console
-- Your own dumps of both games
-- Rust (pinned nightly, see `rust-toolchain.toml`)
+- Your own dumps of both games (by default in `~/Desktop/ps2_games/`)
+- For the decomps: Docker, Python 3, and the original compiler, which you supply (see [Burnout3_decomp](Burnout3_decomp/README.md))
+- Rust
 
-## Repository layout (planned)
+## Repository layout
+
+| Path | What it is |
+|---|---|
+| `Burnout3_decomp/` | Burnout 3 matching decomp (C/C++, CodeWarrior), Stage A |
+| `Burnout3_rust/` | Burnout 3 Rust rewrite, Stage B, plus the ISO extractor |
+| `MC3DER_rust/` | Midnight Club 3 Rust rewrite, Stage B (its decomp, `MC3DER_decomp/`, comes later) |
+
+GameMerge crates (planned, Stage C):
 
 | Path | What it is |
 |---|---|
 | `crates/gm-protocol` | Shared `#[repr(C)]` data layout between host, guest and bridge |
 | `crates/gm-pine` | PCSX2 PINE client |
-| `crates/mc3-sys`, `crates/b3-sys` | Reverse-engineered memory layouts and addresses for each game |
-| `crates/gm-core` | Rust rewrite of Burnout 3's gameplay systems |
+| `crates/mc3-sys`, `crates/b3-sys` | Memory layouts and addresses generated from the decomps |
+| `crates/gm-core` | Burnout 3's gameplay systems, from the Rust rewrite |
 | `crates/gm-bridge` | The passthrough bridge |
 | `crates/gm-hostmod` | Code injected into Midnight Club 3 |
 | `crates/gm-guestpatch` | Patches that run Burnout 3 headless as a guest |
-| `crates/gm-tools` | Symbol import, address validation, test simulators |
-| `docs/` | Reverse-engineering notes and system specs |
+| `crates/gm-tools` | Address validation, scenario runner, test simulators |
 
 ## Legal
 
-This project contains **no game code, assets, BIOS or disc images**, and never will. You need your own legally obtained copies of both games and your own BIOS dump. Only original code, symbol names and documentation are published here.
+This project publishes **decompiled C/C++ source, headers, symbol names, build configs, original Rust code and documentation**. It contains **no game executables, disassembly, assets, BIOS, disc images or compilers**, and never will. The build tools regenerate everything else locally from your own copy, after checking its hash. You need your own legally obtained copies of both games, your own BIOS dump, and your own copy of each game's original compiler.
 
 Midnight Club is a trademark of Take-Two Interactive / Rockstar Games. Burnout is a trademark of Electronic Arts. This is an unofficial fan project with no affiliation to either.
 
