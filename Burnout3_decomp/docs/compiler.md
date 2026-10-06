@@ -73,7 +73,8 @@ All D2 results above are unchanged with the two flags.
 Only the game was built with this compiler. Sony's libraries, RenderWare 3.6, EA DirtySock and the Logitech
 libraries were built with ee-gcc: their functions are 8-byte aligned and use branch-likely instructions, which
 CodeWarrior never does (see [layout.md](layout.md)). The Metrowerks C++ runtime is CodeWarrior code but saves
-registers with 128-bit `sq`/`lq` like 2.4 EB0017, so it was prebuilt with an older compiler. Matching those
+registers with 128-bit `sq`/`lq` like 2.4 EB0017, so it was prebuilt with an older compiler. RenderWare Audio's
+EE side is CodeWarrior code inside the game ranges; whether it used the game's compiler and flags is untested. Matching those
 libraries in D11 needs their own compilers.
 
 ## Reproducing

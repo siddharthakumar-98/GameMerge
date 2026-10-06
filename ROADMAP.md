@@ -13,7 +13,7 @@ the approach changes.
 | 1 Decomp | D0 Environment | **done** | 2026-10-05 | Tools installed, build image works, ISO and ELF hashes verified, PCSX2 boots the ISO. Ghidra project set up (see Machine state). |
 | 1 Decomp | D1 Matching build | **done** | 2026-10-05 | `tools/dock ninja` rebuilds `SLUS_210.50` byte-identical from splat assembly (8,948 functions, symbolic relocations). The rebuilt ELF boots in PCSX2 to the menu and into a race. |
 | 1 Decomp | D2 Compiler and flags locked | **done** | 2026-10-05 | CodeWarrior **3.0.3** (decomp.me `mwcps2-3.0.3-020716`) at `-O4`. 10 functions in 8 C/C++ files (leaf, float, `$gp` global, call, switch with jump table, C++ constructor) match 100% and are linked; the full SHA-1 still matches. Open: `-O3` vs `-O4` not yet separated; two near-misses and one inline-asm function. See `Burnout3_decomp/docs/compiler.md`. |
-| 1 Decomp | D3 Map the binary | **in progress** | 2026-10-05 | Done: `.text` split into game, RenderWare, libsce, runtime, EA DirtySock and Logitech units by compiler fingerprint (8-byte alignment and branch-likely mean ee-gcc); `.data`/`.rodata`/`.init`/`.vtables` identified; VU microcode split into 27 named microprograms; per-category progress in `Burnout3_decomp/PROGRESS.md`. Compiler flags refined to `-O4 -str readonly -Cpp_exceptions off`. Next: carve game translation units. See `Burnout3_decomp/docs/layout.md`. |
+| 1 Decomp | D3 Map the binary | **in progress** | 2026-10-05 | Done: `.text` split into game, RenderWare, libsce, runtime, EA DirtySock and Logitech units by compiler fingerprint (8-byte alignment and branch-likely mean ee-gcc); `.data`/`.rodata`/`.init`/`.vtables` identified; VU microcode split into 27 named microprograms; per-category progress in `Burnout3_decomp/PROGRESS.md`. Compiler flags refined to `-O4 -str readonly -Cpp_exceptions off`. Game code split into 377 provisional translation units by `tools/tusplit.py` (strings, float literals, link-order data, vtables, static initializers); RenderWare Audio found inside the game ranges as a call-closed library (`rwa`). Next: refine units and carve their data slices. See `Burnout3_decomp/docs/layout.md`. |
 | 1 Decomp | D4–D11 Decompile subsystems to C | not started | | 10 functions in C so far (the D2 tests) |
 | 2 Rust rewrite | R1–R6 | not started | | Starts when the Phase 1 gate passes |
 
@@ -95,6 +95,7 @@ c_cpp/                    the C/C++ side
 configure.py              one combined build: extracts, splits, assembles, compiles (C_UNITS, CFLAGS), links
 tools/funcmatch.py        compares one function with the original under chosen flags or compiler
 tools/xref.py             cross-references, compiler fingerprints and strings, for mapping the binary
+tools/tusplit.py          proposes game translation-unit boundaries and writes the .text block of b3.yaml
 tools/progress.py         writes PROGRESS.md (per-category progress) from objdiff's report
 PROGRESS.md               generated progress table
 config/                   symbol names, relocation overrides, extra linker script (shared by both sides)
@@ -122,7 +123,7 @@ orig/ build/ compilers/   gitignored: your ELF, build output, your compiler
 | **D0** | Environment | Tools installed, image builds, ELF extracted and hashes verified, PCSX2 boots the ISO | **done** |
 | **D1** | Matching build | Section boundaries recovered. `ninja` builds `build/SLUS_210.50` entirely from generated assembly with SHA-1 `332be40d…`. | **done** |
 | D2 | Compiler and flags locked | At least 10 functions across at least 3 TUs byte-match: a leaf C function, float math, a C++ ctor/vtable, and a switch/jump table. Flags recorded in `configure.py`. | **done**: 10 functions in 8 files, CodeWarrior 3.0.3 `-O4` |
-| D3 | Map the binary | libsce, runtime (MW runtime, newlib), RenderWare 3.6 and other libraries, and VU microcode labeled and fenced off. Game TU boundaries carved, `.data`/`.rodata` split. Progress reported per category (`game`/`rw`/`sce`/`runtime`/`ea`/`lg`). | **in progress**: libraries, sections, VU and progress done; game TUs next |
+| D3 | Map the binary | libsce, runtime (MW runtime, newlib), RenderWare 3.6 and other libraries, and VU microcode labeled and fenced off. Game TU boundaries carved, `.data`/`.rodata` split. Progress reported per category (`game`/`rw`/`rwa`/`sce`/`runtime`/`ea`/`lg`). | **in progress**: libraries, sections, VU and progress done; game split into 377 provisional units; per-unit data slices next |
 | D4 | Core infrastructure | Memory/heaps, math (vector/matrix, VU0 paths), file I/O and streaming, the tuning-variable system (`VDB.XML` key hash), strings/localization | |
 | D5 | Main loop and game flow | Boot, main loop, game state machine, mode/stage loading, frontend flow | |
 | D6 | Vehicle physics and handling | Physics step, suspension, steering, drift, transmission, boost kick | |
@@ -130,7 +131,7 @@ orig/ build/ compilers/   gitignored: your ELF, build output, your compiler
 | D8 | Game modes and progression | Race, Road Rage, Crash mode (pickups, multipliers, Crashbreaker), Eliminator, Burning Lap, Face-Off, World Tour, save data | |
 | D9 | AI, traffic, camera | Racer AI and arbitration, traffic, follow/bumper/replay cameras | |
 | D10 | Presentation and platform | Game-side rendering, deformation, particles, audio (RW Audio, EA Trax), frontend UI, video, memory card, network (DirtySock) | |
-| D11 | Libraries | MW runtime, newlib libc/libm, libsce, RenderWare 3.6, EA DirtySock, Logitech libraries. All but the MW runtime are ee-gcc output and need a matching GCC. Hand-written asm and VU microcode stay as asm, as in the original source. | |
+| D11 | Libraries | MW runtime, newlib libc/libm, libsce, RenderWare 3.6, RenderWare Audio, EA DirtySock, Logitech libraries. All but the MW runtime and RenderWare Audio are ee-gcc output and need a matching GCC. Hand-written asm and VU microcode stay as asm, as in the original source. | |
 | **Gate** | Phase 1 complete | 100% of functions in C and matching, the build reproduces the SHA-1, and every check under [Testing Phase 1](#testing-phase-1) passes | |
 
 Work runs infrastructure first, then gameplay, then presentation, then libraries. Headers and struct layouts grow

@@ -5,13 +5,14 @@ when its C/C++ compiles to exactly the original bytes; the build links it once i
 
 | Category | Functions | | Code bytes | |
 |---|---|---|---|---|
-| Burnout 3 game code | 10 / 6,357 | 0.16% | 400 / 2,820,336 | 0.01% |
+| Burnout 3 game code | 10 / 5,655 | 0.18% | 400 / 2,674,812 | 0.01% |
 | RenderWare 3.6 | 0 / 679 | 0.00% | 0 / 234,612 | 0.00% |
+| RenderWare Audio (EE side) | 0 / 701 | 0.00% | 0 / 145,524 | 0.00% |
 | Sony libsce | 0 / 936 | 0.00% | 0 / 155,784 | 0.00% |
 | Runtime: crt0, Metrowerks C++ runtime, newlib libc/libm, libgcc | 0 / 258 | 0.00% | 0 / 98,844 | 0.00% |
 | EA DirtySock | 0 / 554 | 0.00% | 0 / 116,316 | 0.00% |
 | Logitech device libraries | 0 / 324 | 0.00% | 0 / 148,476 | 0.00% |
-| **All** | 10 / 9,108 | 0.11% | 400 / 3,574,368 | 0.01% |
+| **All** | 10 / 9,107 | 0.11% | 400 / 3,574,368 | 0.01% |
 
 Categories follow the map in [docs/layout.md](docs/layout.md). Hand-written assembly and VU microcode are
 expected to stay assembly, as in the original source.

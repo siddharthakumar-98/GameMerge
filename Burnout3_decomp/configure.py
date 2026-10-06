@@ -95,6 +95,7 @@ CATEGORIES = {
     "d2": ("game", None),
     "sinit": ("game", None),
     "rw": ("rw", "RenderWare 3.6"),
+    "rwa": ("rwa", "RenderWare Audio (EE side)"),
     "sce": ("sce", "Sony libsce"),
     "runtime": ("runtime", "Runtime: crt0, Metrowerks C++ runtime, newlib libc/libm, libgcc"),
     "ea": ("ea", "EA DirtySock"),

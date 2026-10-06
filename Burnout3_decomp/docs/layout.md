@@ -61,7 +61,7 @@ fingerprints that hold across the whole binary:
 | `0x2372F0` | `sce/insck_mrpc` | sce | libinsck (`PsIIlibinsck` data) to about `0x23A740`, then libmrpc (`sceSifMCallRpc`) |
 | `0x23AFD0` | `game/…` | game | |
 | `0x241BC0` | `sce/mc2_netcnfif_scf` | sce | libmc2, netcnfif, libscf |
-| `0x24B2A0` | `game/…` | game | |
+| `0x24B2A0` | `game/…` | game | includes RenderWare Audio, `0x290B10`–`0x2B52C0` (`rwa/`, see below) |
 | `0x2C28C0` | `lg/lgcodec` | lg | Logitech headset codec (`lgCodecUlawEncode`) |
 | `0x2E2700` | `game/…` | game | |
 | `0x304008` | `lg/lgkbm` | lg | Logitech USB keyboard/mouse (`LgKbM library version … May 18 2004`) |
@@ -73,12 +73,38 @@ fingerprints that hold across the whole binary:
 | `0x443860` | `lg/lgdev` | lg | Logitech wheels and force feedback (`liblgdev version 1.11.027, May 10 2004`) |
 | `0x445300` | `game/…` | game | runs to the end of `.text` |
 
-The game ranges are still one unit each (named `game/text_<VRAM>`), apart from the D2 units carved out of them.
 Two single functions inside game ranges (`0x2174A0`, `0x2FC530`) use branch-likely but sit between CodeWarrior
 functions and are called from game code; they are probably game functions with inline asm.
 
-Libraries that CodeWarrior compiled as part of the game project (RenderWare Audio's EE side, for example) can't
-be told apart by fingerprint and are still inside the game ranges.
+One library was compiled with CodeWarrior inside the game ranges and so has no fingerprint: **RenderWare Audio**
+(EE side), `0x290B10`–`0x2B52C0`, 701 functions (`rwa/`, its own progress category). It was found as a
+*call-closed* region: none of its functions calls game code outside it, while 41 game functions call into it, and
+it holds `RWA ERROR!`, `RwaStreamFormat…` and `RwaRPCTransfer` strings. The same test finds only two other closed
+regions (`0x214610`, `0x35F0A0`, about 55 functions each), and game code calls those from 230 and 61 places, so they
+are game utility modules.
+
+## Game translation units
+
+The game and RenderWare Audio ranges are split into **377 provisional translation units** (361 `game/unit_<VRAM>`
+and 16 `rwa/unit_<VRAM>`; median 6 functions). The D2 units cut 8 of them in two, so `b3.yaml` lists 385 pieces. The binary has no file names, so `tools/tusplit.py` infers the boundaries
+and writes the `.text` block of `b3.yaml` (`python3 tools/tusplit.py --yaml`). It links functions that must share a
+file and cuts where nothing links:
+
+| Evidence | Why it holds |
+|---|---|
+| Shared string literals and float literals | Both are file-local in CodeWarrior output. `1.0f` appears 46 times in `.sdata` because every file keeps its own literal pool, and identical strings appear more than once. `.sdata` words loaded with `lwc1` are only treated as literals when their users are close together; the far-apart ones are global tuning floats. |
+| `.rodata`/`.data` references out of link order | Those sections follow link order (rank correlation with function order 0.93 and 0.88), so an earlier function using a later address than a later function puts both in one file. `.sdata` and `.bss` don't follow link order and are not used. |
+| Methods that appear in only one vtable | A class's own methods are defined in its file, and vtables are laid out in link order. |
+| Calls to a helper used only nearby | The pattern of a file-local `static` function. |
+| C++ static initializers | One per file and in link order through `.ctor`. 102 of the 158 locate reliably through the private data they share with game functions; consecutive ones must be in different files, which forces 26 cuts. |
+
+Gaps that no link crosses become boundaries unless the piece after them carries no evidence of its own; then
+boundaries that contradict a shared string, literal or initializer are removed. Checks on the result: no string or
+float literal used by nearby functions is split across units (0 of 88 and 0 of 81), and no initializer is.
+
+**Provisional:** a unit may still hold several real files, or one file may be cut in two. Units will be merged or
+split as decompiling uncovers static data and string order. Three units contain two initializer anchors and so
+must hold at least two files each: `game/unit_002E2700`, `game/unit_0041D3E0` and `game/unit_0042C2A0`.
 
 ## VU microcode
 
@@ -98,9 +124,7 @@ install tables at `0x485040` and `0x4857C8`. They stay data.
 
 ## Open items
 
-- Carve the game ranges into translation units. Anchors: `.ctor`/`.init` order (158 units with static
-  initializers), `.vtables` order (each vtable points into its unit's functions), and the order of each unit's
-  `.data`, `.rodata` and `.sdata` pieces.
+- Refine the provisional game units (above), and carve each unit's `.data`/`.rodata` slices to match.
 - Split the combined library units (`sce/mpeg_ipu`, `sce/pad2_dbc`, `sce/insck_mrpc`, `sce/mc2_netcnfif_scf`,
   `runtime/libc` from libgcc) and carve `.data`/`.rodata` per library.
 - Confirm the `.sbss`/`.bss` split.
