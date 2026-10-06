@@ -66,7 +66,7 @@ or open `tools/bin/objdiff` in this folder.
 To boot the rebuilt game, start PCSX2 with your ISO inserted and the rebuilt ELF swapped in:
 
 ```bash
-/Applications/PCSX2-v2.4.0.app/Contents/MacOS/PCSX2 -elf ~/Desktop/GameMerge/Burnout3_decomp/build/SLUS_210.50 -- ~/Desktop/ps2_games/"Burnout 3 - Takedown (USA).iso"
+/Applications/PCSX2-v2.4.0.app/Contents/MacOS/PCSX2 -elf ~/Desktop/GameMerge/Burnout3/Burnout3_decomp/build/SLUS_210.50 -- ~/Desktop/ps2_games/"Burnout 3 - Takedown (USA).iso"
 ```
 
 Use `build/SLUS_210.50` (no extension). `build/SLUS_210.50.elf` is an unfinished intermediate file. Starting an ELF

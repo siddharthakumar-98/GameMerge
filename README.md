@@ -11,10 +11,10 @@
 
 ## Plan
 
-1. **Decompile Burnout 3** (active, in [`Burnout3_decomp/`](Burnout3_decomp/README.md)). This produces C/C++ that
+1. **Decompile Burnout 3** (active, in [`Burnout3/Burnout3_decomp/`](Burnout3/Burnout3_decomp/README.md)). This produces C/C++ that
    the original CodeWarrior compiler builds into a byte-identical `SLUS_210.50`. The build pipeline already reproduces
    the original exactly from assembly. Next come verifying it in PCSX2 and converting its 8,948 functions to C.
-2. **Rewrite Burnout 3 in Rust** (next, in [`Burnout3_rust/`](Burnout3_rust/README.md)). A native port of the finished
+2. **Rewrite Burnout 3 in Rust** (next, in [`Burnout3/Burnout3_rust/`](Burnout3/Burnout3_rust/README.md)). A native port of the finished
    decomp that plays the same, loads assets from your own disc, and is verified against the decomp function by
    function and frame by frame.
 
@@ -70,15 +70,15 @@ Memory addresses differ between regions and revisions. Other builds are not supp
 - [PCSX2](https://pcsx2.net) 2.x (PINE enabled for GameMerge)
 - A PS2 BIOS dumped from your own console
 - Your own dumps of both games (by default in `~/Desktop/ps2_games/`)
-- For the decomps: Docker, Python 3, and the original compiler, which you supply (see [Burnout3_decomp](Burnout3_decomp/README.md))
+- For the decomps: Docker, Python 3, and the original compiler, which you supply (see [Burnout3/Burnout3_decomp](Burnout3/Burnout3_decomp/README.md))
 - Rust
 
 ## Repository layout
 
 | Path | What it is |
 |---|---|
-| `Burnout3_decomp/` | Burnout 3 matching decomp, phase 1: `assembly/` (the byte-identical assembly build) and `c_cpp/` (C/C++ compiled with CodeWarrior) |
-| `Burnout3_rust/` | Burnout 3 Rust rewrite, phase 2, plus the ISO extractor |
+| `Burnout3/Burnout3_decomp/` | Burnout 3 matching decomp, phase 1: `assembly/` (the byte-identical assembly build) and `c_cpp/` (C/C++ compiled with CodeWarrior) |
+| `Burnout3/Burnout3_rust/` | Burnout 3 Rust rewrite, phase 2, plus the ISO extractor |
 | `MC3DER_rust/` | Midnight Club 3 Rust rewrite (future) |
 
 ## Legal

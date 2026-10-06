@@ -12,8 +12,8 @@ the approach changes.
 |---|---|---|---|---|
 | 1 Decomp | D0 Environment | **done** | 2026-10-05 | Tools installed, build image works, ISO and ELF hashes verified, PCSX2 boots the ISO. Ghidra project set up (see Machine state). |
 | 1 Decomp | D1 Matching build | **done** | 2026-10-05 | `tools/dock ninja` rebuilds `SLUS_210.50` byte-identical from splat assembly (8,948 functions, symbolic relocations). The rebuilt ELF boots in PCSX2 to the menu and into a race. |
-| 1 Decomp | D2 Compiler and flags locked | **done** | 2026-10-05 | CodeWarrior **3.0.3** (decomp.me `mwcps2-3.0.3-020716`) at `-O4`. 10 functions in 8 C/C++ files (leaf, float, `$gp` global, call, switch with jump table, C++ constructor) match 100% and are linked; the full SHA-1 still matches. Open: `-O3` vs `-O4` not yet separated; two near-misses and one inline-asm function. See `Burnout3/Burnout3_decomp/docs/compiler.md`. |
-| 1 Decomp | D3 Map the binary | **in progress** | 2026-10-05 | Done: `.text` split into game, RenderWare, libsce, runtime, EA DirtySock and Logitech units by compiler fingerprint (8-byte alignment and branch-likely mean ee-gcc); `.data`/`.rodata`/`.init`/`.vtables` identified; VU microcode split into 27 named microprograms; per-category progress in `Burnout3/Burnout3_decomp/PROGRESS.md`. Compiler flags refined to `-O4 -str readonly -Cpp_exceptions off`. Game code split into 377 provisional translation units by `tools/tusplit.py` (strings, float literals, link-order data, vtables, static initializers); RenderWare Audio found inside the game ranges as a call-closed library (`rwa`). `.data`/`.rodata` cut into 292 per-unit slices by `tools/dataslice.py` (96% of code references land in their own unit). Next: `.sdata`/`.bss` per unit and refining units. See `Burnout3/Burnout3_decomp/docs/layout.md`. |
+| 1 Decomp | D2 Compiler and flags locked | **done** | 2026-10-05 | CodeWarrior **3.0.3** (decomp.me `mwcps2-3.0.3-020716`) at `-O4`. 10 functions in 8 C/C++ files (leaf, float, `$gp` global, call, switch with jump table, C++ constructor) match 100% and are linked; the full SHA-1 still matches. Open: `-O3` vs `-O4` not yet separated; two near-misses and one inline-asm function. See `Burnout3_decomp/docs/compiler.md`. |
+| 1 Decomp | D3 Map the binary | **in progress** | 2026-10-05 | Done: `.text` split into game, RenderWare, libsce, runtime, EA DirtySock and Logitech units by compiler fingerprint (8-byte alignment and branch-likely mean ee-gcc); `.data`/`.rodata`/`.init`/`.vtables` identified; VU microcode split into 27 named microprograms; per-category progress in `Burnout3_decomp/PROGRESS.md`. Compiler flags refined to `-O4 -str readonly -Cpp_exceptions off`. Game code split into 377 provisional translation units by `tools/tusplit.py` (strings, float literals, link-order data, vtables, static initializers); RenderWare Audio found inside the game ranges as a call-closed library (`rwa`). `.data`/`.rodata` cut into 292 per-unit slices by `tools/dataslice.py` (96% of code references land in their own unit). Next: `.sdata`/`.bss` per unit and refining units. See `Burnout3_decomp/docs/layout.md`. |
 | 1 Decomp | D4–D11 Decompile subsystems to C | not started | | 10 functions in C so far (the D2 tests) |
 | 2 Rust rewrite | R1–R6 | not started | | Starts when the Phase 1 gate passes |
 
@@ -21,12 +21,22 @@ the approach changes.
 
 | Phase | Goal | Where |
 |---|---|---|
-| **1. Decompile Burnout 3** (active) | C/C++ source that CodeWarrior compiles into a byte-identical `SLUS_210.50` | `Burnout3/Burnout3_decomp/` |
-| **2. Rewrite Burnout 3 in Rust** (next) | A native Rust port of the finished decomp, with the same gameplay and assets from your disc | `Burnout3/Burnout3_rust/` |
-| 3. Decompile Midnight Club 3 | Coming soon | — |
-| 4. Rewrite Midnight Club 3 in Rust | Coming soon | — |
+| **1. Decompile Burnout 3** (active) | C/C++ source that CodeWarrior compiles into a byte-identical `SLUS_210.50` | `Burnout3_decomp/` |
+| **2. Rewrite Burnout 3 in Rust** (next) | A native Rust port of the finished decomp, with the same gameplay and assets from your disc | `Burnout3_rust/` |
 
 Phase 2 starts only after **all** of Phase 1 is done and verified. It ports from matched source, never from guesses.
+
+### Related projects
+This repo is one of three. Dependencies point one way: this repo never depends on the others.
+
+| Repo | Relationship |
+|---|---|
+| MC3DER (planned) | Sister project: the same decomp and Rust rewrite for Midnight Club 3: DUB Edition Remix, once its ISO is dumped. It will start from a copy of this repo's tooling. |
+| [GameMerge](https://github.com/siddharthakumar-98/GameMerge) | Consumes this repo: symbols and headers (Track A), and the Rust `burnout3-core` crate at tagged releases (Track B). |
+
+This repo was split out of GameMerge on <split date> with its full history (`git filter-repo`). The folder names
+`Burnout3_decomp/` and `Burnout3_rust/` are unchanged from GameMerge, so their history and internal links carry over
+as they were.
 
 ### What we publish
 - **Committed:** decompiled C/C++ source, headers, symbol names, build configs, Rust code and docs.
@@ -45,9 +55,9 @@ Phase 2 starts only after **all** of Phase 1 is done and verified. It ports from
 | PINE | Off (`EnablePINE = false`, slot 28011) | Enable for Phase 2 trace capture |
 | Docker | Image `b3-build` (linux/amd64: binutils 2.42, wibo 1.2.0, objdiff-cli 3.8.2, splat 0.50.0) | — |
 | Rust | rustc 1.99 stable via Homebrew `rustup` (`/opt/homebrew/opt/rustup/bin`, on `PATH` via `~/.zshrc`) | — |
-| Ghidra | 12.1.4 + OpenJDK 21 (Homebrew), ghidra-emotionengine-reloaded v2.1.38 enabled. Project `Burnout3_decomp` (outside the repo) has `SLUS_210.50` imported as `r5900:LE:32:default`, with `gp = 0x4E8670`, a `bss` block `0x4E2680`–`0x1ECE9FF`, and `SECTION4` split into `0x100000`–`0x469DFF` (code), `vu_microcode` `0x469E00`–`0x483EFF` (not executable) and `data` `0x483F00`–`0x4E267F`. | — |
-| Decomp helpers | Python venv at `Burnout3/Burnout3_decomp/.venv`, objdiff GUI and m2c in `Burnout3/Burnout3_decomp/tools/bin/` (gitignored) | — |
-| Compiler | `Burnout3/Burnout3_decomp/compilers/3.0.3-020716/` (gitignored) is the build in use. The other decomp.me PS2 builds sit beside it for comparison (`2.3.3`, `2.4.0-build0017`, `3.0`, `3.0.1`, and the 2003–2006 `3.0`/`3.0.1` builds). All run under wibo. | — |
+| Ghidra | 12.1.4 + OpenJDK 21 (Homebrew), ghidra-emotionengine-reloaded v2.1.38 enabled. Project `Burnout3_decomp` (outside the repo, in `~/Desktop/Ghidra/`) has `SLUS_210.50` imported as `r5900:LE:32:default`, with `gp = 0x4E8670`, a `bss` block `0x4E2680`–`0x1ECE9FF`, and `SECTION4` split into `0x100000`–`0x469DFF` (code), `vu_microcode` `0x469E00`–`0x483EFF` (not executable) and `data` `0x483F00`–`0x4E267F`. | — |
+| Decomp helpers | Python venv at `Burnout3_decomp/.venv`, objdiff GUI and m2c in `Burnout3_decomp/tools/bin/` (gitignored) | — |
+| Compiler | `Burnout3_decomp/compilers/3.0.3-020716/` (gitignored) is the build in use. The other decomp.me PS2 builds sit beside it for comparison (`2.3.3`, `2.4.0-build0017`, `3.0`, `3.0.1`, and the 2003–2006 `3.0`/`3.0.1` builds). All run under wibo. | — |
 
 ---
 
@@ -67,7 +77,7 @@ once the compiler is available.
 - **Compiler:** `MW MIPS C Compiler (2.4.1.01)`, which is Metrowerks CodeWarrior for PS2.
 - **Language and libraries:** C++ (MW-style RTTI) on top of RenderWare 3.6 (including the PS2 `sky2` driver),
   RenderWare Audio and Sony libsce.
-- **Recovered layout** (details in [Burnout3/Burnout3_decomp/docs/layout.md](Burnout3/Burnout3_decomp/docs/layout.md)):
+- **Recovered layout** (details in [Burnout3_decomp/docs/layout.md](Burnout3_decomp/docs/layout.md)):
 
   | VRAM | Region |
   |---|---|
@@ -81,9 +91,9 @@ once the compiler is available.
   | `0x4E0680`–`0x4E2680` | `.sdata` |
   | up to `0x1ECEA00` | `.sbss` + `.bss` |
 
-- Disc contents and asset formats: [Burnout3/Burnout3_rust/PLAN.md](Burnout3/Burnout3_rust/PLAN.md).
+- Disc contents and asset formats: [Burnout3_rust/PLAN.md](Burnout3_rust/PLAN.md).
 
-### Repository layout: `Burnout3/Burnout3_decomp/`
+### Repository layout: `Burnout3_decomp/`
 ```
 assembly/                 the assembly side
   splat/b3.yaml           segment split of the load segment, plus carved-out units
@@ -110,7 +120,7 @@ orig/ build/ compilers/   gitignored: your ELF, build output, your compiler
 ### Tooling
 | Purpose | Tool |
 |---|---|
-| Compiler | CodeWarrior PS2 `mwccps2` **Version 3.0.3**, run through **wibo** in the linux/amd64 image. It is one of four builds that stamp the game's `MW MIPS C Compiler (2.4.1.01)`, and the only one matching every D2 test ([docs/compiler.md](Burnout3/Burnout3_decomp/docs/compiler.md)). |
+| Compiler | CodeWarrior PS2 `mwccps2` **Version 3.0.3**, run through **wibo** in the linux/amd64 image. It is one of four builds that stamp the game's `MW MIPS C Compiler (2.4.1.01)`, and the only one matching every D2 test ([docs/compiler.md](Burnout3_decomp/docs/compiler.md)). |
 | Assemble and link | GNU binutils (`mips-linux-gnu-as -march=r5900`, `ld`, `objcopy`). `tools/elf.py rebuild` wraps the linked segment in the original ELF container. |
 | Split and disassemble | splat (`platform: ps2`, `compiler: MWCCPS2`) and spimdisasm (R5900: MMI, `lq`/`sq`, VU0 macro ops) |
 | Diff and progress | objdiff (macOS GUI and CLI reports), asm-differ, decomp-permuter, decomp.me scratches |
@@ -164,7 +174,7 @@ boot path and catch anything the hash can't, such as a wrong load procedure.
 | SHA-1 match | `tools/dock ninja` prints `build/SLUS_210.50: 332be40d… OK` and fails otherwise | **passing** |
 | Clean rebuild | Delete `asm/ assets/ build/ build.ninja orig/SLUS_210.50.rom`, then `tools/dock python3 configure.py && tools/dock ninja` | **passing** |
 | Byte comparison | `cmp build/SLUS_210.50 orig/SLUS_210.50` reports no differences | **passing** |
-| Fresh-clone build | Follow [Burnout3/Burnout3_decomp/README.md](Burnout3/Burnout3_decomp/README.md) from a fresh clone with only the ISO present | to do |
+| Fresh-clone build | Follow [Burnout3_decomp/README.md](Burnout3_decomp/README.md) from a fresh clone with only the ISO present | to do |
 | Nothing derived is tracked | `git status --ignored` shows `orig/`, `asm/`, `assets/`, `build/`, `compilers/` ignored, and `git ls-files` lists no binaries | **passing** |
 
 ### 2. The build is genuinely relinkable
@@ -177,7 +187,7 @@ boot path and catch anything the hash can't, such as a wrong load procedure.
 | Check | How | State |
 |---|---|---|
 | Per function | objdiff shows 100% for every function moved from assembly to C | **passing** (10 of 10 linked functions) |
-| Progress | `tools/dock python3 tools/progress.py` runs `objdiff-cli report` and writes `Burnout3/Burnout3_decomp/PROGRESS.md` per category | **passing** |
+| Progress | `tools/dock python3 tools/progress.py` runs `objdiff-cli report` and writes `Burnout3_decomp/PROGRESS.md` per category | **passing** |
 | No regressions | The SHA-1 check stays green after every function lands. A function that doesn't match stays in assembly. | **passing** (SHA-1 matches with all 10 linked from C, including a C-compiled jump table in `.data`) |
 
 ### 4. It runs like the original
@@ -206,7 +216,7 @@ In `~/Library/Application Support/PCSX2/logs/emulog.txt`, `Serial: SLUS-21050` m
 
 ## Phase 2: Rewrite Burnout 3 in Rust (next)
 
-**Goal:** a native Rust version of Burnout 3, in `Burnout3/Burnout3_rust/`, that plays the same as the original. It loads assets
+**Goal:** a native Rust version of Burnout 3, in `Burnout3_rust/`, that plays the same as the original. It loads assets
 from your ISO at runtime and is ported from the finished, verified decomp. It uses idiomatic Rust wherever that
 doesn't change gameplay.
 
@@ -217,12 +227,29 @@ doesn't change gameplay.
 |---|---|
 | `formats` | RenderWare binary stream, TXD, BGV/BTV, tracks, VDB, strings, audio |
 | `ee` | EE float semantics (no denormals/inf/NaN, EE rounding) and RNG |
-| `game` | `no_std` gameplay core |
+| `burnout3-core` | `no_std` gameplay core: simulation, rules, modes. A library with a stable public API (see below). |
 | `rw` | RenderWare runtime replacement, with librw as a reference |
-| `engine` | wgpu renderer, cpal audio, gilrs input |
+| `platform` | wgpu renderer, cpal audio, gilrs input, and disc/asset file system. **Contains nothing Burnout-specific.** |
+| `burnout3` | The thin app binary that wires `burnout3-core`, `rw` and `platform` together |
 | `tools/iso_extract` | Already exists. Used as a library so assets stream straight from your ISO. |
 | C oracle | The matched decomp compiled natively (clang via the `cc` crate, behind a platform shim) and called from Rust tests |
 | PCSX2 + PINE | Golden per-frame state traces from the matched ELF, using savestates and input recordings |
+
+### Crate boundaries (decide before R1)
+These rules keep the rewrite usable as a library, which GameMerge's native track depends on. They cost little now and
+a lot to retrofit.
+
+- **`burnout3-core` is a library first.** The app is only one of its users. No global state: the whole simulation
+  lives in a `World` value, so two cores can run in one process.
+- **One deterministic step:** `World::step(&mut self, input: &FrameInput) -> FrameEvents`. Takedowns, boost changes,
+  crashes and camera requests come out as data in `FrameEvents`, not as side effects.
+- **Rendering is an output, not a call.** The core produces draw and audio requests. `rw` and `platform` turn them
+  into frames and sound. The core never touches wgpu or cpal.
+- **External cars are allowed.** The core accepts car states that it doesn't simulate (puppets) through its public
+  API. Burnout itself never needs this, but it's what lets another game drive Burnout's rules.
+- **`platform` stays generic.** When MC3DER's Rust work starts, `platform` moves to its own repo and both games
+  depend on it. Until then it lives here with no dependency on any other Burnout crate.
+- **Releases are tagged** (`core-v0.x`). Downstream projects pin tags, never `main`.
 
 ### Port order
 1. Formats and assets
@@ -266,11 +293,17 @@ are preserved exactly.**
 
 ---
 
-## Future plans
+## What other projects need from this repo
 
-3. **Decompile Midnight Club 3: DUB Edition Remix** (SLUS-21355). *Coming soon.* No milestones until the game files
-   are available.
-4. **Rewrite Midnight Club 3 in Rust.** *Coming soon.*
+[GameMerge](https://github.com/siddharthakumar-98/GameMerge) depends on this repo at specific milestones. Its own
+roadmap tracks those dependencies. This table exists so that the order of work here can take them into account.
 
-The earlier GameMerge passthrough plan (Burnout 3 gameplay inside Midnight Club 3, milestones M1–M10) remains in git
-history (commit `a53cf40`) for when both games are done.
+| GameMerge needs | From milestone here | Used by |
+|---|---|---|
+| Symbols, structs and function signatures for gameplay rules (boost, takedowns, crash state, Impact Time) | D7 | Track A (PCSX2 as linker) |
+| Car slots and the race/mode state machine | D6, D8 | Track A |
+| `burnout3-core` with the step API and puppet cars | R3 | Track B (native Rust) |
+| Crash mode in `burnout3-core` | R4 | Track B |
+
+None of this changes the decomp's own order of work (infrastructure → gameplay → presentation → libraries). It only
+matters when choosing between two units of similar value.

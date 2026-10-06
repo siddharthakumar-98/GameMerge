@@ -4,8 +4,8 @@
 
 This rewrite is ported from the byte-matching C/C++ decomp in [../Burnout3_decomp](../Burnout3_decomp) once that
 decomp is complete. It keeps the original behavior exactly and uses idiomatic Rust wherever that doesn't change
-gameplay. It is part of [GameMerge](../README.md), next to [MC3DER_rust](../MC3DER_rust), and its gameplay core
-(takedowns, boost, crash scoring) becomes GameMerge's `gm-core`.
+gameplay. It is part of [Burnout3](../README.md), and its gameplay core (takedowns, boost, crash scoring) becomes the
+`burnout3-core` crate that GameMerge builds on.
 
 > **Status:** waiting on the decomp (Stage A1). The only working piece is the ISO extractor. See
 > [../ROADMAP.md](../ROADMAP.md) for the plan and [PLAN.md](PLAN.md) for disc findings.
