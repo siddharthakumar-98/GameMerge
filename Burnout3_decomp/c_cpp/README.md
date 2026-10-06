@@ -10,7 +10,9 @@ the original bytes.
 
 ## Adding a unit
 
-1. Carve the function(s) out in `../assembly/splat/b3.yaml`. Starts and ends must be 16-byte aligned.
+1. Carve the function(s) out of their `game/text_<VRAM>` range in `../assembly/splat/b3.yaml`, and name the
+   remainder after them `game/text_<VRAM>`. CodeWarrior functions always start on 16-byte boundaries, so the
+   unit's start and end are too.
 2. Write the C/C++ in `src/` with the same path.
 3. Iterate with `tools/dock python3 tools/funcmatch.py <function> c_cpp/src/<unit>.c` until it reports 100%.
 4. Add the unit to `C_UNITS` in `../configure.py` with `linked: True`. If it owns data, such as a switch's jump

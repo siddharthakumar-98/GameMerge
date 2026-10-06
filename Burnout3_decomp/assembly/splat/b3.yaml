@@ -11,6 +11,9 @@ options:
   base_path: ../..   # Burnout3_decomp/, relative to this file
   platform: ps2
   compiler: MWCCPS2
+  # Library objects start on 8-byte boundaries, so input sections keep their own alignment (set per asm
+  # object by configure.py) instead of being forced to 16.
+  emit_subalign: False
 
   gp_value: 0x004E8670
 
@@ -49,39 +52,101 @@ segments:
     vram: 0x00100000
     bss_size: 0x19EC380
     subsegments:
-      - [0x000000, asm, text]         # .text: crt0, game, RenderWare, libsce, MW runtime
-      # D2 units: carved out so C can replace them (see C_UNITS in configure.py). Starts and ends
-      # must be 16-byte aligned because the linker pads every input to 16 bytes.
+      # .text, carved into the libraries and game ranges recovered in D3 (docs/layout.md). Library code was
+      # built with ee-gcc (functions 8-byte aligned, branch-likely used); game code with CodeWarrior (16-byte
+      # aligned, no branch-likely). Starts may be 8-byte aligned; configure.py gives each asm object the
+      # alignment of its start address.
+      - [0x000000, asm, runtime/crt0]           # _start and stubs (hand-written)
+      - [0x000270, asm, runtime/mwrt]           # Metrowerks C++ runtime (__construct_array, std::exception, ...)
+      - [0x002380, asm, sce/libgraph]
+      - [0x003BC8, asm, sce/libdma]
+      - [0x004410, asm, sce/mpeg_ipu]           # libmpeg + libipu, not yet split
+      - [0x00BA00, asm, sce/libkernl]           # starts with the syscall stubs
+      - [0x017078, asm, runtime/libm]           # newlib/fdlibm double-precision math
+      - [0x01E3A0, asm, sce/libcdvd]
+      - [0x01FD00, asm, runtime/libc]           # newlib libc + libgcc soft-float
+      - [0x02EB30, asm, game/text_0012EB30]     # game code starts with main()
+      # D2 units: carved out so C can replace them (see C_UNITS in configure.py)
       - [0x031AA0, asm, d2/func_00131AA0]
-      - [0x031AC0, asm, text_00131AC0]
+      - [0x031AC0, asm, game/text_00131AC0]
       - [0x031CE0, asm, d2/func_00131CE0]
-      - [0x031D20, asm, text_00131D20]
+      - [0x031D20, asm, game/text_00131D20]
       - [0x036E00, asm, d2/func_00136E00]
-      - [0x036E10, asm, text_00136E10]
+      - [0x036E10, asm, game/text_00136E10]
       - [0x03AE70, asm, d2/func_0013AE70]
-      - [0x03AEB0, asm, text_0013AEB0]
+      - [0x03AEB0, asm, game/text_0013AEB0]
       - [0x03B670, asm, d2/func_0013B670]
-      - [0x03B6A0, asm, text_0013B6A0]
+      - [0x03B6A0, asm, game/text_0013B6A0]
       - [0x03B740, asm, d2/func_0013B740]
-      - [0x03B770, asm, text_0013B770]
+      - [0x03B770, asm, game/text_0013B770]
       - [0x03C910, asm, d2/func_0013C910]
-      - [0x03C940, asm, text_0013C940]
+      - [0x03C940, asm, game/text_0013C940]
       - [0x04DD80, asm, d2/func_0014DD80]
-      - [0x04DDB0, asm, text_0014DDB0]
+      - [0x04DDB0, asm, game/text_0014DDB0]
       - [0x04E7E0, asm, d2/func_0014E7E0]
-      - [0x04E860, asm, text_0014E860]
+      - [0x04E860, asm, game/text_0014E860]
       - [0x04EC30, asm, d2/func_0014EC30]
-      - [0x04ECB0, asm, text_0014ECB0]
+      - [0x04ECB0, asm, game/text_0014ECB0]
+      - [0x0D8260, asm, rw/renderware]          # RenderWare 3.6 core, world, PS2 sky2 driver ($Id strings)
+      - [0x111C30, asm, game/text_00211C30]
+      - [0x115660, asm, sce/pad2_dbc]           # libpad2 + libdbc
+      - [0x116E40, asm, game/text_00216E40]
+      - [0x1372F0, asm, sce/insck_mrpc]         # libinsck + libmrpc
+      - [0x13AFD0, asm, game/text_0023AFD0]
+      - [0x141BC0, asm, sce/mc2_netcnfif_scf]   # libmc2 + netcnfif + libscf
+      - [0x14B2A0, asm, game/text_0024B2A0]
       - [0x18B700, asm, d2/func_0028B700]
-      - [0x18B720, asm, text_0028B720]
-      - [0x369E00, textbin, vutext]   # VU microcode uploaded through DMA/VIF MPG chains
-      - [0x383F00, data, data]        # .data/.rodata: libsce tags, strings, jump tables, libkernl patch blob
-      - [0x3B60D0, data, d2/func_0014EC30]  # jump table of func_0014EC30 (7 entries + padding)
-      - [0x3B60F0, data, data_004B60F0]
-      # sinit, ctor and data_tail share the .ctor ordering bucket so the linker keeps them in this order.
-      - { start: 0x3D3E00, type: asm, name: sinit, linker_section_order: .ctor }  # C++ static initializers (__sinit_*)
+      - [0x18B720, asm, game/text_0028B720]
+      - [0x1C28C0, asm, lg/lgcodec]             # Logitech headset audio codec
+      - [0x1E2700, asm, game/text_002E2700]
+      - [0x204008, asm, lg/lgkbm]               # Logitech USB keyboard/mouse
+      - [0x206D90, asm, game/text_00306D90]
+      - [0x2D3158, asm, sce/libnet]
+      - [0x2D46A0, asm, game/text_003D46A0]
+      - [0x2FFE48, asm, ea/dirtysock]           # EA DirtySock networking
+      - [0x31C900, asm, game/text_0041C900]
+      - [0x343860, asm, lg/lgdev]               # Logitech wheel/force-feedback (liblgdev)
+      - [0x345300, asm, game/text_00445300]
+      # VU microcode: one piece per microprogram. Each starts with a DMA tag (ret/end) followed by VIF MPG
+      # uploads; code passes the piece's address to the DMA. rw_* are RenderWare sky2's own pipelines
+      # (referenced from its pipeline tables), game_* are the game's (each referenced by one game function).
+      - [0x369E00, textbin, vu/rw_00469E00]
+      - [0x36A000, textbin, vu/rw_0046A000]
+      - [0x36A270, textbin, vu/rw_0046A270]
+      - [0x36A3D0, textbin, vu/rw_0046A3D0]
+      - [0x36A560, textbin, vu/rw_0046A560]
+      - [0x36A590, textbin, vu/game_0046A590]
+      - [0x36BB80, textbin, vu/game_0046BB80]
+      - [0x36D090, textbin, vu/game_0046D090]
+      - [0x36D750, textbin, vu/game_0046D750]
+      - [0x36F0D0, textbin, vu/game_0046F0D0]
+      - [0x370650, textbin, vu/game_00470650]
+      - [0x371FA0, textbin, vu/game_00471FA0]
+      - [0x372EB0, textbin, vu/game_00472EB0]
+      - [0x3745C0, textbin, vu/game_004745C0]
+      - [0x375910, textbin, vu/game_00475910]
+      - [0x376130, textbin, vu/game_00476130]
+      - [0x3771B0, textbin, vu/game_004771B0]
+      - [0x378260, textbin, vu/game_00478260]
+      - [0x3787D0, textbin, vu/game_004787D0]
+      - [0x379610, textbin, vu/game_00479610]
+      - [0x37A060, textbin, vu/game_0047A060]
+      - [0x37C6F0, textbin, vu/game_0047C6F0]
+      - [0x37E300, textbin, vu/game_0047E300]
+      - [0x37F6D0, textbin, vu/game_0047F6D0]
+      - [0x3803F0, textbin, vu/game_004803F0]
+      - [0x381DD0, textbin, vu/game_00481DD0]
+      - [0x3839E0, textbin, vu/game_004839E0]
+      # .data and .rodata. Every unit's .data piece precedes all .rodata (string literals are in .rodata:
+      # the game was built with -str readonly).
+      - [0x383F00, data, data]        # .data: libsce version tags, libkernl patch blob, initialized globals
+      - [0x3B1500, rodata, rodata]    # .rodata: RTTI, strings, const tables, jump tables
+      - [0x3B60D0, rodata, d2/func_0014EC30]  # jump table of func_0014EC30 (7 entries + padding)
+      - [0x3B60F0, rodata, rodata_004B60F0]
+      # init, ctor and vtables share the .ctor ordering bucket so the linker keeps them in this order.
+      - { start: 0x3D3E00, type: asm, name: sinit, linker_section_order: .ctor }  # .init: C++ static initializers (__sinit_*)
       - [0x3DD820, ctor, ctor]        # constructor table, null-terminated, padded to 16
-      - { start: 0x3DDAA0, type: data, name: data_tail, linker_section_order: .ctor }
+      - { start: 0x3DDAA0, type: data, name: vtables, linker_section_order: .ctor }  # .vtables: {RTTI*, 0, methods...}
       - [0x3E0680, sdata, sdata]      # small data, _gp - 0x7FF0
       - { type: bss, vram: 0x004E2680, name: bss }
   - [0x3E2680]

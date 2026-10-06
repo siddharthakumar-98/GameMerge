@@ -1,8 +1,9 @@
 # Compiler identification (D2)
 
-**Result:** Metrowerks CodeWarrior for PS2 **Version 3.0.3** (decomp.me `mwcps2-3.0.3-020716`) at **`-O4`**. With
-this compiler and no other options, 10 functions in 8 translation units compile to the original bytes and link
-into a build with the original SHA-1.
+**Result:** Metrowerks CodeWarrior for PS2 **Version 3.0.3** (decomp.me `mwcps2-3.0.3-020716`) with
+**`-O4 -str readonly -Cpp_exceptions off`**. With these flags, 10 functions in 8 translation units compile to the
+original bytes and link into a build with the original SHA-1. The two extra flags came from D3 and are
+[explained below](#flags-found-while-mapping-the-binary-d3).
 
 ## The version stamp narrows it to four builds
 
@@ -57,6 +58,23 @@ four flag sets gave the same result for every function, so the table shows one v
 - **`func_0013B670`:** CodeWarrior never emits `pmaxw`/`pminw` from C (`MIN`/`MAX` macros and
   `#pragma conditional_move` both produce branches), and the trailing `pextlw` looks hand-written. The original is
   almost certainly an inline-asm clamp helper. It stays in assembly until inline asm is worked out.
+
+## Flags found while mapping the binary (D3)
+
+| Flag | Evidence |
+|---|---|
+| `-str readonly` | The game's string literals sit in `.rodata`, and even 6-byte ones (`"%s/%s"` at `0x4BB808`) are loaded with `lui`/`addiu`. By default CodeWarrior puts literals in `.data` and short ones in `.sdata`, loaded through `$gp`, which changes the code. |
+| `-Cpp_exceptions off` | The binary has no `.exceptix` exception tables, which CodeWarrior emits for any function with destructors when exceptions are on. The code was identical in the cases tested; the flag keeps C++ units from emitting a section the original doesn't have. |
+
+All D2 results above are unchanged with the two flags.
+
+## Not everything is CodeWarrior
+
+Only the game was built with this compiler. Sony's libraries, RenderWare 3.6, EA DirtySock and the Logitech
+libraries were built with ee-gcc: their functions are 8-byte aligned and use branch-likely instructions, which
+CodeWarrior never does (see [layout.md](layout.md)). The Metrowerks C++ runtime is CodeWarrior code but saves
+registers with 128-bit `sq`/`lq` like 2.4 EB0017, so it was prebuilt with an older compiler. Matching those
+libraries in D11 needs their own compilers.
 
 ## Reproducing
 
