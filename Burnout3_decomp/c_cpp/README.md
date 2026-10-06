@@ -16,7 +16,8 @@ the original bytes.
 2. Write the C/C++ in `src/` with the same path.
 3. Iterate with `tools/dock python3 tools/funcmatch.py <function> c_cpp/src/<unit>.c` until it reports 100%.
 4. Add the unit to `C_UNITS` in `../configure.py` with `linked: True`. If it owns data, such as a switch's jump
-   table, also carve that data and map it under `data`.
+   table, also carve that data and map it under `data`. Every game unit already has its own `.data`/`.rodata`
+   slices (`data/<unit>.data`, `data/<unit>.rodata`), so a C file that replaces a whole unit maps those.
 5. Run `tools/dock python3 configure.py && tools/dock ninja`. The build must still print `332be40d… OK`.
 
 ## Current units (D2 compiler tests)

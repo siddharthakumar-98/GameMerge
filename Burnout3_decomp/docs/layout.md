@@ -106,6 +106,27 @@ float literal used by nearby functions is split across units (0 of 88 and 0 of 8
 split as decompiling uncovers static data and string order. Three units contain two initializer anchors and so
 must hold at least two files each: `game/unit_002E2700`, `game/unit_0041D3E0` and `game/unit_0042C2A0`.
 
+## Data slices
+
+`.data` and `.rodata` are cut into one slice per unit (292 slices: 63 in `.data`, 229 in `.rodata`), named after the
+unit that owns them (`assembly/asm/data/<unit>.data.s`, `.rodata.s`). `tools/dataslice.py` writes the block of
+`b3.yaml` (`python3 tools/dataslice.py --yaml`):
+
+- Both sections follow link order, so each is cut into consecutive slices in the units' `.text` order. A dynamic
+  program picks the cuts that put the most code references inside their own unit's slice.
+- Items no code references (RTTI, tables reached through pointers) go with the following unit when they start on
+  an 8-byte boundary after the previous unit's last referenced item.
+- Sony version tags (`PsIIlib…`) and RenderWare `$Id` strings start their library's data, so they are cut points
+  even though no code references them.
+- Every cut is snapped to a 16-byte boundary at an item start. The generated assembly aligns items relative to
+  the start of its own file and some need 16-byte alignment, so a slice can't start on an 8-byte boundary. A few
+  library slices therefore start one item away from their true start (libinsck's `.data` at `0x49B690` instead
+  of its tag at `0x49B678`, libcdvd's `.rodata` at `0x4B3270` instead of `0x4B3248`).
+- The D2 jump table keeps its exact slice so its C unit can replace it.
+
+Result: 96.1% of code references into `.rodata` (97.9% of string references) and 94.4% into `.data` land in their
+own unit's slice. Most of the rest are globals used by other files.
+
 ## VU microcode
 
 One splat piece per microprogram (`vu/rw_<VRAM>`, `vu/game_<VRAM>`, symbols `vu_rw_*`/`vu_game_*`). Each starts
@@ -124,7 +145,10 @@ install tables at `0x485040` and `0x4857C8`. They stay data.
 
 ## Open items
 
-- Refine the provisional game units (above), and carve each unit's `.data`/`.rodata` slices to match.
+- Refine the provisional game units and their data slices (above). Allowing 8-byte-aligned slice starts would
+  need slices whose assembly contains no 16-byte `.align`.
+- Carve `.sdata`/`.sbss`/`.bss` per unit. They don't follow link order (rank correlation with function order
+  -0.09 for `.sdata` and 0.05 for `.bss`), so the linker must order them some other way.
 - Split the combined library units (`sce/mpeg_ipu`, `sce/pad2_dbc`, `sce/insck_mrpc`, `sce/mc2_netcnfif_scf`,
   `runtime/libc` from libgcc) and carve `.data`/`.rodata` per library.
 - Confirm the `.sbss`/`.bss` split.
