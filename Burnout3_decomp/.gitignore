@@ -1,8 +1,8 @@
 # Never commit anything derived byte-for-byte from the game or proprietary tools.
 # See the publish rule in ../ROADMAP.md.
 /orig/
-/asm/
-/assets/
+/assembly/asm/
+/assembly/assets/
 /build/
 /compilers/
 /tools/bin/
