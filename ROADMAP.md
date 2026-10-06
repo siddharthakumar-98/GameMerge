@@ -12,9 +12,9 @@ the approach changes.
 |---|---|---|---|---|
 | 1 Decomp | D0 Environment | **done** | 2026-10-05 | Tools installed, build image works, ISO and ELF hashes verified, PCSX2 boots the ISO. Ghidra project set up (see Machine state). |
 | 1 Decomp | D1 Matching build | **done** | 2026-10-05 | `tools/dock ninja` rebuilds `SLUS_210.50` byte-identical from splat assembly (8,948 functions, symbolic relocations). The rebuilt ELF boots in PCSX2 to the menu and into a race. |
-| 1 Decomp | D2 Compiler and flags locked | **in progress** (1 of 10 functions) | 2026-10-05 | Compiler: Version 2.4 Engineering Build 0017 (decomp.me `mwcps2-2.4-001213`) in `compilers/2.4.0-build0017/`, stamping the game's exact `MW MIPS C Compiler (2.4.1.01)`. First function `func_0013C910` matches 100% at `-O3`/`-O4` and is linked into the build in place of its assembly, with the SHA-1 still matching. Provisional flags: `-O4`. |
-| 1 Decomp | D3 Map the binary | ready to start | | Can run alongside D2 |
-| 1 Decomp | D4–D11 Decompile subsystems to C | not started | | 1 of 8,948 functions in C (the D2 test) |
+| 1 Decomp | D2 Compiler and flags locked | **done** | 2026-10-05 | CodeWarrior **3.0.3** (decomp.me `mwcps2-3.0.3-020716`) at `-O4`. 10 functions in 8 C/C++ files (leaf, float, `$gp` global, call, switch with jump table, C++ constructor) match 100% and are linked; the full SHA-1 still matches. Open: `-O3` vs `-O4` not yet separated; two near-misses and one inline-asm function. See `Burnout3_decomp/docs/compiler.md`. |
+| 1 Decomp | D3 Map the binary | **next** | | Library labeling, translation-unit carving, `.data`/`.rodata` split |
+| 1 Decomp | D4–D11 Decompile subsystems to C | not started | | 10 functions in C so far (the D2 tests) |
 | 2 Rust rewrite | R1–R6 | not started | | Starts when the Phase 1 gate passes |
 
 ## Overview
@@ -47,7 +47,7 @@ Phase 2 starts only after **all** of Phase 1 is done and verified. It ports from
 | Rust | rustc 1.99 stable via Homebrew `rustup` (`/opt/homebrew/opt/rustup/bin`, on `PATH` via `~/.zshrc`) | — |
 | Ghidra | 12.1.4 + OpenJDK 21 (Homebrew), ghidra-emotionengine-reloaded v2.1.38 enabled. Project `Burnout3_decomp` (outside the repo) has `SLUS_210.50` imported as `r5900:LE:32:default`, with `gp = 0x4E8670`, a `bss` block `0x4E2680`–`0x1ECE9FF`, and `SECTION4` split into `0x100000`–`0x469DFF` (code), `vu_microcode` `0x469E00`–`0x483EFF` (not executable) and `data` `0x483F00`–`0x4E267F`. | — |
 | Decomp helpers | Python venv at `Burnout3_decomp/.venv`, objdiff GUI and m2c in `Burnout3_decomp/tools/bin/` (gitignored) | — |
-| Compiler | `Burnout3_decomp/compilers/2.4.0-build0017/` (gitignored): `mwccps2.exe`, `mwldps2.exe`, `asm_r5900_elf.exe`, `LMGR326B.DLL`. Runs under wibo. | — |
+| Compiler | `Burnout3_decomp/compilers/3.0.3-020716/` (gitignored) is the build in use. The other decomp.me PS2 builds sit beside it for comparison (`2.3.3`, `2.4.0-build0017`, `3.0`, `3.0.1`, and the 2003–2006 `3.0`/`3.0.1` builds). All run under wibo. | — |
 
 ---
 
@@ -92,6 +92,7 @@ c_cpp/                    the C/C++ side
   src/                    decompiled C/C++; each file replaces the asm unit with the same path
   include/                shared headers
 configure.py              one combined build: extracts, splits, assembles, compiles (C_UNITS, CFLAGS), links
+tools/funcmatch.py        compares one function with the original under chosen flags or compiler
 config/                   symbol names, relocation overrides, extra linker script (shared by both sides)
 tools/elf.py              hash-checked extraction and exact ELF container rebuild
 tools/dock                runs a command in the build container
@@ -103,7 +104,7 @@ orig/ build/ compilers/   gitignored: your ELF, build output, your compiler
 ### Tooling
 | Purpose | Tool |
 |---|---|
-| Compiler | CodeWarrior PS2 `mwccps2`, Version 2.4 Engineering Build 0017 (stamps objects `MW MIPS C Compiler (2.4.1.01)`, the game's string), run through **wibo** in the linux/amd64 image. Nearby versions get tested if some code won't match. |
+| Compiler | CodeWarrior PS2 `mwccps2` **Version 3.0.3**, run through **wibo** in the linux/amd64 image. It is one of four builds that stamp the game's `MW MIPS C Compiler (2.4.1.01)`, and the only one matching every D2 test ([docs/compiler.md](Burnout3_decomp/docs/compiler.md)). |
 | Assemble and link | GNU binutils (`mips-linux-gnu-as -march=r5900`, `ld`, `objcopy`). `tools/elf.py rebuild` wraps the linked segment in the original ELF container. |
 | Split and disassemble | splat (`platform: ps2`, `compiler: MWCCPS2`) and spimdisasm (R5900: MMI, `lq`/`sq`, VU0 macro ops) |
 | Diff and progress | objdiff (macOS GUI and CLI reports), asm-differ, decomp-permuter, decomp.me scratches |
@@ -116,8 +117,8 @@ orig/ build/ compilers/   gitignored: your ELF, build output, your compiler
 |---|---|---|---|
 | **D0** | Environment | Tools installed, image builds, ELF extracted and hashes verified, PCSX2 boots the ISO | **done** |
 | **D1** | Matching build | Section boundaries recovered. `ninja` builds `build/SLUS_210.50` entirely from generated assembly with SHA-1 `332be40d…`. | **done** |
-| D2 | Compiler and flags locked | At least 10 functions across at least 3 TUs byte-match: a leaf C function, float math, a C++ ctor/vtable, and a switch/jump table. Flags recorded in `configure.py`. | in progress: 1 of 10 (`func_0013C910`, a leaf function) |
-| D3 | Map the binary | libsce, MW runtime/MSL, RenderWare 3.6 TUs (by `$Id`) and VU microcode labeled and fenced off. Game TU boundaries carved, `.data`/`.rodata` split. Progress reported per category (`game`/`rw`/`sce`/`msl`). | ready |
+| D2 | Compiler and flags locked | At least 10 functions across at least 3 TUs byte-match: a leaf C function, float math, a C++ ctor/vtable, and a switch/jump table. Flags recorded in `configure.py`. | **done**: 10 functions in 8 files, CodeWarrior 3.0.3 `-O4` |
+| D3 | Map the binary | libsce, MW runtime/MSL, RenderWare 3.6 TUs (by `$Id`) and VU microcode labeled and fenced off. Game TU boundaries carved, `.data`/`.rodata` split. Progress reported per category (`game`/`rw`/`sce`/`msl`). | **next** |
 | D4 | Core infrastructure | Memory/heaps, math (vector/matrix, VU0 paths), file I/O and streaming, the tuning-variable system (`VDB.XML` key hash), strings/localization | |
 | D5 | Main loop and game flow | Boot, main loop, game state machine, mode/stage loading, frontend flow | |
 | D6 | Vehicle physics and handling | Physics step, suspension, steering, drift, transmission, boost kick | |
@@ -134,7 +135,7 @@ outward from core code. Within a milestone, work goes one translation unit at a 
 ### Risks and open questions
 | Risk / question | Mitigation |
 |---|---|
-| Is Build 0017 the exact compiler? | Its `.comment` string matches the game's exactly. D2 confirms it by matching real functions. If some patterns won't match, test nearby versions. The compiler stays gitignored. |
+| Is 3.0.3 the exact compiler? | It matches every D2 test that any available build matches. Two near-misses (`func_0013AE70`, `func_00131CE0`) may point to a build not on decomp.me, or to source forms not found yet. Revisit as more functions are decompiled. |
 | Section and TU boundaries had to be inferred from one merged segment | `_gp`, alignment padding, rodata/string clustering, RenderWare `$Id` strings, vtable/RTTI order. Refined in D3. |
 | GNU ld standing in for the MW linker | Match the load segment, then rebuild the container in `tools/elf.py`. Already proven in D1. |
 | R5900-specific code (MMI, VU0 macro, 128-bit loads/stores) | Keep it as inline asm where the original most likely was. Hand-decompile the rest. |
@@ -168,9 +169,9 @@ boot path and catch anything the hash can't, such as a wrong load procedure.
 ### 3. Each decompiled function matches
 | Check | How | State |
 |---|---|---|
-| Per function | objdiff shows 100% for every function moved from assembly to C | **passing** (1 of 1: `func_0013C910`) |
+| Per function | objdiff shows 100% for every function moved from assembly to C | **passing** (10 of 10 linked functions) |
 | Progress | `objdiff-cli report` → `tools/progress.py` → `Burnout3_decomp/PROGRESS.md`, summarized in the Status table | from D2/D3 |
-| No regressions | The SHA-1 check stays green after every function lands. A function that doesn't match stays in assembly. | **passing** (SHA-1 matches with `func_0013C910` linked from C) |
+| No regressions | The SHA-1 check stays green after every function lands. A function that doesn't match stays in assembly. | **passing** (SHA-1 matches with all 10 linked from C, including a C-compiled jump table in `.data`) |
 
 ### 4. It runs like the original
 All of these run the rebuilt `build/SLUS_210.50` (no `.elf` extension; `build/SLUS_210.50.elf` is an unfinished

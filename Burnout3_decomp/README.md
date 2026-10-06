@@ -6,9 +6,9 @@ The goal is C/C++ source that the original compiler (Metrowerks CodeWarrior for 
 builds into a byte-identical `SLUS_210.50`. The game is C++ on top of RenderWare 3.6 and Sony libsce. Game assets are
 never in this repo. The rebuilt ELF runs in PCSX2 with your own disc providing them.
 
-> **Status:** D1 done, D2 started. The build reproduces the original SHA-1 and the rebuilt ELF boots and runs in
-> PCSX2. The first function is now C (`c_cpp/src/d2/func_0013C910.c`), compiled by CodeWarrior and linked in place
-> of its assembly, and the SHA-1 still matches. See
+> **Status:** D2 done. The compiler is identified (CodeWarrior 3.0.3, `-O4`), and 10 functions in 8 C/C++ files
+> compile to the original bytes and are linked in place of their assembly. The full build still reproduces the
+> original SHA-1, and the rebuilt ELF boots and runs in PCSX2. See
 > [../ROADMAP.md](../ROADMAP.md) for milestones and [docs/layout.md](docs/layout.md) for the memory layout.
 
 ## Supported build
@@ -23,8 +23,9 @@ never in this repo. The rebuilt ELF runs in PCSX2 with your own disc providing t
 - Python 3, for the optional native venv with splat/spimdisasm
 - Rust, to run the ISO extractor in `../Burnout3_rust`
 - Your own dump of the game
-- From D2 on: the CodeWarrior PS2 compiler, which you supply in `compilers/<version>/` (never committed). Version 2.4
-  Engineering Build 0017 (`compilers/2.4.0-build0017/`) stamps objects with the game's own compiler string.
+- The CodeWarrior PS2 compiler, **Version 3.0.3**, which you supply in `compilers/3.0.3-020716/` (never committed). It
+  is the decomp.me build `mwcps2-3.0.3-020716`. [docs/compiler.md](docs/compiler.md) explains why this build was
+  chosen.
 
 ## Building
 
@@ -55,7 +56,7 @@ never in this repo. The rebuilt ELF runs in PCSX2 with your own disc providing t
 The last step prints `build/SLUS_210.50: 332be40d… OK` when the output matches. Use `configure.py --no-split` to
 regenerate `build.ninja` without re-running splat.
 
-C units need the compiler in `compilers/2.4.0-build0017/` (see Requirements). `tools/dock ninja` compiles each
+C units need the compiler in `compilers/3.0.3-020716/` (see Requirements). `tools/dock ninja` compiles each
 `c_cpp/src/**/*.c` listed in `C_UNITS` in `configure.py`, and links it in place of its assembly once it's marked as
 matching. To compare a C unit against the original, run `tools/dock objdiff-cli report generate -o build/report.json`,
 or open `tools/bin/objdiff` in this folder.
@@ -89,9 +90,10 @@ The decomp has two sides plus shared files at the top level.
 | `config/reloc_addrs.txt` | Relocation overrides (offsets the disassembler mistook for labels) | yes |
 | `config/linker_extra.ld` | Extra linker script, including the offsets used by `reloc_addrs.txt` | yes |
 | `tools/elf.py` | Extracts the load segment and rebuilds the exact ELF container | yes |
+| `tools/funcmatch.py` | Compares one C/C++ function with the original under chosen flags or compiler | yes |
 | `tools/dock` | Runs a command in the build container | yes |
 | `docker/Dockerfile` | Build image: binutils-mips-linux-gnu, wibo, objdiff-cli, splat | yes |
-| `docs/` | Layout and reverse-engineering notes | yes |
+| `docs/` | Memory layout, compiler identification, reverse-engineering notes | yes |
 | `orig/` | Your ELF and its raw load segment | **no** |
 | `compilers/` | CodeWarrior binaries you supply | **no** |
 | `build/` | Build output | **no** |
@@ -102,6 +104,9 @@ The decomp has two sides plus shared files at the top level.
 - **objdiff:** run `tools/bin/objdiff` (macOS GUI) in this directory. It reads `objdiff.json`.
 - **Ghidra 12.1.4** with ghidra-emotionengine-reloaded, installed via Homebrew (`ghidraRun`).
 - **m2c:** `tools/bin/m2c/m2c.py` for first-draft C from a function's asm.
+- **funcmatch:** `tools/dock python3 tools/funcmatch.py <function> <file.c> [-f=FLAGS ...] [-c compilers/<version>]`
+  compiles one function, compares it with the original through objdiff, and shows an instruction diff when it
+  doesn't match.
 
 ## Legal
 
