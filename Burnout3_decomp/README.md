@@ -6,7 +6,8 @@ The goal is C/C++ source that the original compiler (Metrowerks CodeWarrior for 
 builds into a byte-identical `SLUS_210.50`. The game is C++ on top of RenderWare 3.6 and Sony libsce. Game assets are
 never in this repo. The rebuilt ELF runs in PCSX2 with your own disc providing them.
 
-> **Status:** D1 done. The build reproduces the original SHA-1 entirely from generated assembly. No C yet. See
+> **Status:** D1 done. The build reproduces the original SHA-1 entirely from generated assembly, and the rebuilt ELF
+> boots and runs in PCSX2. No C yet. See
 > [../ROADMAP.md](../ROADMAP.md) for milestones and [docs/layout.md](docs/layout.md) for the memory layout.
 
 ## Supported build
@@ -21,7 +22,8 @@ never in this repo. The rebuilt ELF runs in PCSX2 with your own disc providing t
 - Python 3, for the optional native venv with splat/spimdisasm
 - Rust, to run the ISO extractor in `../Burnout3_rust`
 - Your own dump of the game
-- From D2 on: the CodeWarrior PS2 compiler, which you supply in `compilers/` (never committed)
+- From D2 on: the CodeWarrior PS2 compiler, which you supply in `compilers/<version>/` (never committed). Version 2.4
+  Engineering Build 0017 (`compilers/2.4.0-build0017/`) stamps objects with the game's own compiler string.
 
 ## Building
 
@@ -52,7 +54,15 @@ never in this repo. The rebuilt ELF runs in PCSX2 with your own disc providing t
 The last step prints `build/SLUS_210.50: 332be40d… OK` when the output matches. Use `configure.py --no-split` to
 regenerate `build.ninja` without re-running splat.
 
-To boot the rebuilt ELF, load `build/SLUS_210.50` in PCSX2 ("Boot ELF") with your Burnout 3 ISO selected as the disc.
+To boot the rebuilt game, start PCSX2 with your ISO inserted and the rebuilt ELF swapped in:
+
+```bash
+/Applications/PCSX2-v2.4.0.app/Contents/MacOS/PCSX2 -elf ~/Desktop/GameMerge/Burnout3_decomp/build/SLUS_210.50 -- ~/Desktop/ps2_games/"Burnout 3 - Takedown (USA).iso"
+```
+
+Use `build/SLUS_210.50` (no extension). `build/SLUS_210.50.elf` is an unfinished intermediate file. Starting an ELF
+from PCSX2's menu boots without a disc, and the game stalls on a black screen because it loads its modules from the
+disc at startup.
 
 ## Layout
 
