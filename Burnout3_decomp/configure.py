@@ -5,9 +5,10 @@ Run inside the build container (tools/dock python3 configure.py), then `tools/do
 
 Steps:
   1. orig/SLUS_210.50 (your copy, hash-checked) -> orig/SLUS_210.50.rom (raw load segment)
-  2. splat splits the rom into asm/ and assets/ and writes the linker script into build/
-  3. build.ninja assembles, links, objcopies the load segment and rebuilds the ELF container,
-     failing unless the result has the original SHA-1
+  2. splat splits the rom into assembly/asm/ and assembly/assets/ and writes the linker script into build/
+  3. build.ninja assembles every asm unit, compiles every C unit in c_cpp/src/ with CodeWarrior, links
+     (C objects replace their asm counterparts once they match), objcopies the load segment and
+     rebuilds the ELF container, failing unless the result has the original SHA-1
 """
 
 import argparse
@@ -20,13 +21,31 @@ ROOT = Path(__file__).resolve().parent
 BASENAME = "SLUS_210.50"
 ORIG_ELF = Path("orig") / BASENAME
 ORIG_ROM = Path("orig") / f"{BASENAME}.rom"
-SPLAT_YAML = Path("splat/b3.yaml")
+SPLAT_YAML = Path("assembly/splat/b3.yaml")
+ASM_DIR = Path("assembly/asm")
+SRC_DIR = Path("c_cpp/src")
 BUILD = Path("build")
 
 CROSS = "mips-linux-gnu-"
-AS_FLAGS = "-EL -march=r5900 -mabi=eabi -G 0 -no-pad-sections -I include"
+AS_FLAGS = "-EL -march=r5900 -mabi=eabi -G 0 -no-pad-sections -I assembly/include"
+
+# CodeWarrior for PS2, Version 2.4 Engineering Build 0017. It stamps objects with
+# "MW MIPS C Compiler (2.4.1.01)", the same string as the game's .comment section.
+MWCC = Path("compilers/2.4.0-build0017/mwccps2.exe")
+# Provisional (D2): optimization level 3 or 4 is required for filled delay slots. Which of the two,
+# and speed vs. space, is still to be pinned down by more functions.
+CFLAGS = "-O4"
+
+# C translation units. Each replaces the asm unit of the same path (relative to assembly/asm/ and
+# c_cpp/src/). Set "linked" once objdiff shows 100%; the SHA-1 check then proves it in the full build.
+C_UNITS = {
+    "d2/func_0013C910": {"linked": True},
+}
+
+LD_SCRIPT_SPLAT = BUILD / f"{BASENAME}.ld"
+LD_SCRIPT_FINAL = BUILD / f"{BASENAME}.final.ld"
 LD_SCRIPTS = [
-    BUILD / f"{BASENAME}.ld",
+    LD_SCRIPT_FINAL,
     BUILD / "undefined_syms_auto.txt",
     BUILD / "undefined_funcs_auto.txt",
     Path("config/linker_extra.ld"),
@@ -36,6 +55,34 @@ LD_SCRIPTS = [
 def run(cmd: list[str]) -> None:
     print("+", " ".join(cmd))
     subprocess.run(cmd, cwd=ROOT, check=True)
+
+
+def asm_obj(unit: str) -> Path:
+    return BUILD / ASM_DIR / f"{unit}.o"
+
+
+def c_src(unit: str) -> Path:
+    return SRC_DIR / f"{unit}.c"
+
+
+def c_obj(unit: str) -> Path:
+    return BUILD / SRC_DIR / f"{unit}.o"
+
+
+def write_final_ld_script() -> None:
+    """Copy splat's linker script, pointing each linked C unit at its C object instead of its asm.
+
+    Every section line of the unit (.text, .data, .rodata, .bss) is redirected, so the asm object is
+    not pulled into the link at all."""
+    script = (ROOT / LD_SCRIPT_SPLAT).read_text()
+    for unit, cfg in C_UNITS.items():
+        if not cfg["linked"]:
+            continue
+        old = f"{asm_obj(unit).as_posix()}("
+        if old not in script:
+            sys.exit(f"{unit}: {old} not found in {LD_SCRIPT_SPLAT}; is it carved out in {SPLAT_YAML}?")
+        script = script.replace(old, f"{c_obj(unit).as_posix()}(")
+    (ROOT / LD_SCRIPT_FINAL).write_text(script)
 
 
 def write_ninja(asm_files: list[Path]) -> None:
@@ -50,6 +97,10 @@ def write_ninja(asm_files: list[Path]) -> None:
         "rule as",
         f"  command = {CROSS}as {AS_FLAGS} -o $out $in",
         "  description = AS $in",
+        "",
+        "rule cc",
+        f"  command = MWCIncludes=c_cpp/include wibo {MWCC} {CFLAGS} -c $in -o $out",
+        "  description = CC $in",
         "",
         "rule ld",
         f"  command = {CROSS}ld -EL {' '.join(f'-T {s}' for s in LD_SCRIPTS)} "
@@ -71,6 +122,10 @@ def write_ninja(asm_files: list[Path]) -> None:
         o = BUILD / s.with_suffix(".o")
         objs.append(o)
         lines.append(f"build {o}: as {s}")
+    for unit in C_UNITS:
+        o = c_obj(unit)
+        objs.append(o)
+        lines.append(f"build {o}: cc {c_src(unit)}")
     lines += [
         "",
         f"build {elf}: ld | {' '.join(str(o) for o in objs)} {' '.join(str(s) for s in LD_SCRIPTS)}",
@@ -84,17 +139,21 @@ def write_ninja(asm_files: list[Path]) -> None:
 
 
 def write_objdiff(asm_files: list[Path]) -> None:
-    """objdiff units: target objects come from splat asm. Base objects (from C) are added as
-    translation units get decompiled."""
+    """objdiff units: target objects come from splat asm; C units add a base object to diff against."""
     units = []
     for s in asm_files:
-        if s.parts[1] == "data":
+        if s.parent.name == "data":
             continue
-        units.append({
-            "name": s.with_suffix("").as_posix(),
+        unit = s.relative_to(ASM_DIR).with_suffix("").as_posix()
+        entry = {
+            "name": unit,
             "target_path": (BUILD / s.with_suffix(".o")).as_posix(),
-            "metadata": {"progress_categories": ["unsplit"]},
-        })
+            "metadata": {"progress_categories": ["game" if unit in C_UNITS else "unsplit"]},
+        }
+        if unit in C_UNITS:
+            entry["base_path"] = c_obj(unit).as_posix()
+            entry["metadata"]["source_path"] = c_src(unit).as_posix()
+        units.append(entry)
     config = {
         "min_version": "2.0.0",
         "custom_make": "ninja",
@@ -115,23 +174,29 @@ def write_objdiff(asm_files: list[Path]) -> None:
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--no-split", action="store_true", help="reuse existing asm/ instead of re-running splat")
+    p.add_argument("--no-split", action="store_true", help="reuse existing assembly/asm/ instead of re-running splat")
     args = p.parse_args()
 
     if not (ROOT / ORIG_ELF).exists():
         sys.exit(f"missing {ORIG_ELF}: extract SLUS_210.50 from your disc first (see README.md)")
     if not (ROOT / ORIG_ROM).exists():
         run([sys.executable, "tools/elf.py", "extract", str(ORIG_ELF), str(ORIG_ROM)])
+    if C_UNITS and not (ROOT / MWCC).exists():
+        sys.exit(f"missing {MWCC}: C units need the CodeWarrior compiler (see README.md)")
 
     if not args.no_split:
         run([sys.executable, "-m", "splat", "split", str(SPLAT_YAML)])
 
-    asm_files = sorted(p.relative_to(ROOT) for p in (ROOT / "asm").rglob("*.s"))
+    asm_files = sorted(p.relative_to(ROOT) for p in (ROOT / ASM_DIR).rglob("*.s"))
     if not asm_files:
-        sys.exit("no asm files found; run without --no-split")
+        sys.exit(f"no asm files found in {ASM_DIR}; run without --no-split")
+    for unit in C_UNITS:
+        if not (ROOT / c_src(unit)).exists():
+            sys.exit(f"C unit {unit}: missing {c_src(unit)}")
+    write_final_ld_script()
     write_ninja(asm_files)
     write_objdiff(asm_files)
-    print(f"wrote build.ninja and objdiff.json ({len(asm_files)} asm files)")
+    print(f"wrote build.ninja and objdiff.json ({len(asm_files)} asm files, {len(C_UNITS)} C units)")
 
 
 if __name__ == "__main__":

@@ -77,7 +77,7 @@ Memory addresses differ between regions and revisions. Other builds are not supp
 
 | Path | What it is |
 |---|---|
-| `Burnout3_decomp/` | Burnout 3 matching decomp (C/C++, CodeWarrior), phase 1 |
+| `Burnout3_decomp/` | Burnout 3 matching decomp, phase 1: `assembly/` (the byte-identical assembly build) and `c_cpp/` (C/C++ compiled with CodeWarrior) |
 | `Burnout3_rust/` | Burnout 3 Rust rewrite, phase 2, plus the ISO extractor |
 | `MC3DER_rust/` | Midnight Club 3 Rust rewrite (future) |
 

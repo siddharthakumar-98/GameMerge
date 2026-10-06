@@ -6,8 +6,9 @@ The goal is C/C++ source that the original compiler (Metrowerks CodeWarrior for 
 builds into a byte-identical `SLUS_210.50`. The game is C++ on top of RenderWare 3.6 and Sony libsce. Game assets are
 never in this repo. The rebuilt ELF runs in PCSX2 with your own disc providing them.
 
-> **Status:** D1 done. The build reproduces the original SHA-1 entirely from generated assembly, and the rebuilt ELF
-> boots and runs in PCSX2. No C yet. See
+> **Status:** D1 done, D2 started. The build reproduces the original SHA-1 and the rebuilt ELF boots and runs in
+> PCSX2. The first function is now C (`c_cpp/src/d2/func_0013C910.c`), compiled by CodeWarrior and linked in place
+> of its assembly, and the SHA-1 still matches. See
 > [../ROADMAP.md](../ROADMAP.md) for milestones and [docs/layout.md](docs/layout.md) for the memory layout.
 
 ## Supported build
@@ -39,7 +40,7 @@ never in this repo. The rebuilt ELF runs in PCSX2 with your own disc providing t
    docker build --platform linux/amd64 -t b3-build -f docker/Dockerfile .
    ```
 
-3. Configure. This checks your ELF's hash, splits it with splat and writes `build.ninja`:
+3. Configure. This checks your ELF's hash, splits it with splat into `assembly/asm/` and writes `build.ninja`:
 
    ```bash
    tools/dock python3 configure.py
@@ -54,6 +55,11 @@ never in this repo. The rebuilt ELF runs in PCSX2 with your own disc providing t
 The last step prints `build/SLUS_210.50: 332be40d… OK` when the output matches. Use `configure.py --no-split` to
 regenerate `build.ninja` without re-running splat.
 
+C units need the compiler in `compilers/2.4.0-build0017/` (see Requirements). `tools/dock ninja` compiles each
+`c_cpp/src/**/*.c` listed in `C_UNITS` in `configure.py`, and links it in place of its assembly once it's marked as
+matching. To compare a C unit against the original, run `tools/dock objdiff-cli report generate -o build/report.json`,
+or open `tools/bin/objdiff` in this folder.
+
 To boot the rebuilt game, start PCSX2 with your ISO inserted and the rebuilt ELF swapped in:
 
 ```bash
@@ -66,22 +72,29 @@ disc at startup.
 
 ## Layout
 
+The decomp has two sides plus shared files at the top level.
+
 | Path | What it is | Committed |
 |---|---|---|
-| `configure.py` | Writes `build.ninja` and `objdiff.json` | yes |
-| `splat/b3.yaml` | Segment split of the load segment | yes |
+| **`assembly/`** | The assembly side ([README](assembly/README.md)) | |
+| `assembly/splat/b3.yaml` | Split of the load segment into code, data, VU microcode and carved-out units | yes |
+| `assembly/include/` | Assembler macros | yes |
+| `assembly/asm/`, `assembly/assets/` | splat output, regenerated from your ELF | **no** |
+| **`c_cpp/`** | The C/C++ side ([README](c_cpp/README.md)) | |
+| `c_cpp/src/` | Decompiled C/C++, each file replacing the assembly unit with the same path | yes |
+| `c_cpp/include/` | Shared headers | yes |
+| **Shared** | | |
+| `configure.py` | One combined build: splits, assembles, compiles, links, checks the SHA-1. Lists C units and compiler flags. | yes |
 | `config/symbol_addrs.txt` | Symbol names | yes |
-| `config/linker_extra.ld` | Extra linker script | yes |
-| `include/` | Asm macros and headers | yes |
-| `src/` | Decompiled C/C++ (from D2) | yes |
+| `config/reloc_addrs.txt` | Relocation overrides (offsets the disassembler mistook for labels) | yes |
+| `config/linker_extra.ld` | Extra linker script, including the offsets used by `reloc_addrs.txt` | yes |
 | `tools/elf.py` | Extracts the load segment and rebuilds the exact ELF container | yes |
 | `tools/dock` | Runs a command in the build container | yes |
 | `docker/Dockerfile` | Build image: binutils-mips-linux-gnu, wibo, objdiff-cli, splat | yes |
 | `docs/` | Layout and reverse-engineering notes | yes |
 | `orig/` | Your ELF and its raw load segment | **no** |
-| `asm/`, `assets/` | splat output, regenerated from your ELF | **no** |
-| `build/` | Build output | **no** |
 | `compilers/` | CodeWarrior binaries you supply | **no** |
+| `build/` | Build output | **no** |
 | `tools/bin/` | Downloaded helper tools (objdiff GUI, m2c) | **no** |
 
 ## Tooling for decompiling

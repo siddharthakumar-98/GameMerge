@@ -1,22 +1,24 @@
 # splat config for Burnout 3: Takedown (NTSC-U, SLUS-210.50, VER 1.00).
 # Input is the raw load segment of the ELF (see tools/elf.py extract), loaded at 0x100000.
 # Boundaries were recovered by hand from the merged PT_LOAD; see docs/layout.md.
+# Paths below are relative to Burnout3_decomp/ (base_path).
 name: Burnout 3 Takedown (SLUS-210.50)
 sha1: 817cfb412af2d81d4b5fda7b57837b4e28442dfc
 options:
   basename: SLUS_210.50
   target_path: orig/SLUS_210.50.rom
   elf_path: build/SLUS_210.50.elf
-  base_path: ..
+  base_path: ../..   # Burnout3_decomp/, relative to this file
   platform: ps2
   compiler: MWCCPS2
 
   gp_value: 0x004E8670
 
-  asm_path: asm
-  src_path: src
+  asm_path: assembly/asm
+  src_path: c_cpp/src
   build_path: build
-  asset_path: assets
+  asset_path: assembly/assets
+  generated_asm_macros_directory: assembly/include
 
   ld_script_path: build/SLUS_210.50.ld
   ld_dependencies: False
@@ -28,6 +30,8 @@ options:
 
   symbol_addrs_path:
     - config/symbol_addrs.txt
+  reloc_addrs_path:
+    - config/reloc_addrs.txt
   undefined_funcs_auto_path: build/undefined_funcs_auto.txt
   undefined_syms_auto_path: build/undefined_syms_auto.txt
 
@@ -46,6 +50,9 @@ segments:
     bss_size: 0x19EC380
     subsegments:
       - [0x000000, asm, text]         # .text: crt0, game, RenderWare, libsce, MW runtime
+      # D2 compiler test: functions carved out one at a time so C can replace them (see configure.py C_UNITS)
+      - [0x03C910, asm, d2/func_0013C910]
+      - [0x03C930, asm, text_0013C930]
       - [0x369E00, textbin, vutext]   # VU microcode uploaded through DMA/VIF MPG chains
       - [0x383F00, data, data]        # .data/.rodata: libsce tags, strings, jump tables, libkernl patch blob
       # sinit, ctor and data_tail share the .ctor ordering bucket so the linker keeps them in this order.

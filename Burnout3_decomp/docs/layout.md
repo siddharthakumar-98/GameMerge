@@ -2,7 +2,7 @@
 
 The executable is a CodeWarrior (`MW MIPS C Compiler (2.4.1.01)`) ELF with **one merged PT_LOAD**. The linker kept no
 `.text`/`.data` section headers, so the boundaries below were recovered by hand. They are encoded in
-[`../splat/b3.yaml`](../splat/b3.yaml), and the asm-only build reproduces the original SHA-1 with them.
+[`../assembly/splat/b3.yaml`](../assembly/splat/b3.yaml), and the build reproduces the original SHA-1 with them.
 
 ELF: entry `0x100008`, load segment file offset `0x100`, vaddr `0x100000`, filesz `0x3E2680`, memsz `0x1DCEA00`.
 `.reginfo` gives `_gp = 0x4E8670`.
