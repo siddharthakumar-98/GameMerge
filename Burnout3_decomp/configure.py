@@ -29,17 +29,30 @@ BUILD = Path("build")
 CROSS = "mips-linux-gnu-"
 AS_FLAGS = "-EL -march=r5900 -mabi=eabi -G 0 -no-pad-sections -I assembly/include"
 
-# CodeWarrior for PS2, Version 2.4 Engineering Build 0017. It stamps objects with
-# "MW MIPS C Compiler (2.4.1.01)", the same string as the game's .comment section.
-MWCC = Path("compilers/2.4.0-build0017/mwccps2.exe")
-# Provisional (D2): optimization level 3 or 4 is required for filled delay slots. Which of the two,
-# and speed vs. space, is still to be pinned down by more functions.
+# CodeWarrior for PS2 Version 3.0.3 (decomp.me mwcps2-3.0.3-020716). Four builds stamp the game's
+# "MW MIPS C Compiler (2.4.1.01)" (2.4 EB0017, 3.0, 3.0.1, 3.0.3); 3.0.3 is the only one that
+# matches every D2 test, including the inline cvt.w.s float-to-int. See docs/compiler.md.
+MWCC = Path("compilers/3.0.3-020716/mwccps2.exe")
+# -O3 and -O4 produce identical code for every function tested so far; -O4 is the working choice.
 CFLAGS = "-O4"
 
-# C translation units. Each replaces the asm unit of the same path (relative to assembly/asm/ and
-# c_cpp/src/). Set "linked" once objdiff shows 100%; the SHA-1 check then proves it in the full build.
+# C/C++ translation units, keyed by path under c_cpp/src/ (.c or .cpp) and assembly/asm/ (.s).
+#   linked: link the C object instead of the asm. Set only once objdiff shows 100%; the SHA-1 check
+#           then proves it in the full build.
+#   data:   carved data pieces this unit owns, mapped to the C object's section that replaces them
+#           (e.g. a switch's jump table in .rodata).
 C_UNITS = {
+    "d2/func_00131AA0": {"linked": True},
+    "d2/func_00131CE0": {"linked": False},  # 98.75%: original computes a large offset in v0, not at
+    "d2/func_00136E00": {"linked": True},
+    "d2/func_0013AE70": {"linked": False},  # 90.38%: branch delay slot filled differently
+    "d2/func_0013B670": {"linked": False},  # original uses inline asm (pmaxw/pminw); C is a draft
+    "d2/func_0013B740": {"linked": True},
     "d2/func_0013C910": {"linked": True},
+    "d2/func_0014DD80": {"linked": True},
+    "d2/func_0014E7E0": {"linked": True},
+    "d2/func_0014EC30": {"linked": True, "data": {"data/d2/func_0014EC30.data": ".rodata"}},
+    "d2/func_0028B700": {"linked": True},
 }
 
 LD_SCRIPT_SPLAT = BUILD / f"{BASENAME}.ld"
@@ -62,7 +75,8 @@ def asm_obj(unit: str) -> Path:
 
 
 def c_src(unit: str) -> Path:
-    return SRC_DIR / f"{unit}.c"
+    cpp = SRC_DIR / f"{unit}.cpp"
+    return cpp if (ROOT / cpp).exists() else SRC_DIR / f"{unit}.c"
 
 
 def c_obj(unit: str) -> Path:
@@ -82,6 +96,11 @@ def write_final_ld_script() -> None:
         if old not in script:
             sys.exit(f"{unit}: {old} not found in {LD_SCRIPT_SPLAT}; is it carved out in {SPLAT_YAML}?")
         script = script.replace(old, f"{c_obj(unit).as_posix()}(")
+        for piece, section in cfg.get("data", {}).items():
+            old = f"{(BUILD / ASM_DIR / piece).as_posix()}.o(.data)"
+            if old not in script:
+                sys.exit(f"{unit}: data piece {old} not found in {LD_SCRIPT_SPLAT}")
+            script = script.replace(old, f"{c_obj(unit).as_posix()}({section})")
     (ROOT / LD_SCRIPT_FINAL).write_text(script)
 
 
@@ -142,7 +161,7 @@ def write_objdiff(asm_files: list[Path]) -> None:
     """objdiff units: target objects come from splat asm; C units add a base object to diff against."""
     units = []
     for s in asm_files:
-        if s.parent.name == "data":
+        if s.relative_to(ASM_DIR).parts[0] == "data":
             continue
         unit = s.relative_to(ASM_DIR).with_suffix("").as_posix()
         entry = {

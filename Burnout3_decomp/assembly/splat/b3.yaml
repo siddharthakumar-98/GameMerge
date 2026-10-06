@@ -50,11 +50,34 @@ segments:
     bss_size: 0x19EC380
     subsegments:
       - [0x000000, asm, text]         # .text: crt0, game, RenderWare, libsce, MW runtime
-      # D2 compiler test: functions carved out one at a time so C can replace them (see configure.py C_UNITS)
+      # D2 units: carved out so C can replace them (see C_UNITS in configure.py). Starts and ends
+      # must be 16-byte aligned because the linker pads every input to 16 bytes.
+      - [0x031AA0, asm, d2/func_00131AA0]
+      - [0x031AC0, asm, text_00131AC0]
+      - [0x031CE0, asm, d2/func_00131CE0]
+      - [0x031D20, asm, text_00131D20]
+      - [0x036E00, asm, d2/func_00136E00]
+      - [0x036E10, asm, text_00136E10]
+      - [0x03AE70, asm, d2/func_0013AE70]
+      - [0x03AEB0, asm, text_0013AEB0]
+      - [0x03B670, asm, d2/func_0013B670]
+      - [0x03B6A0, asm, text_0013B6A0]
+      - [0x03B740, asm, d2/func_0013B740]
+      - [0x03B770, asm, text_0013B770]
       - [0x03C910, asm, d2/func_0013C910]
-      - [0x03C930, asm, text_0013C930]
+      - [0x03C940, asm, text_0013C940]
+      - [0x04DD80, asm, d2/func_0014DD80]
+      - [0x04DDB0, asm, text_0014DDB0]
+      - [0x04E7E0, asm, d2/func_0014E7E0]
+      - [0x04E860, asm, text_0014E860]
+      - [0x04EC30, asm, d2/func_0014EC30]
+      - [0x04ECB0, asm, text_0014ECB0]
+      - [0x18B700, asm, d2/func_0028B700]
+      - [0x18B720, asm, text_0028B720]
       - [0x369E00, textbin, vutext]   # VU microcode uploaded through DMA/VIF MPG chains
       - [0x383F00, data, data]        # .data/.rodata: libsce tags, strings, jump tables, libkernl patch blob
+      - [0x3B60D0, data, d2/func_0014EC30]  # jump table of func_0014EC30 (7 entries + padding)
+      - [0x3B60F0, data, data_004B60F0]
       # sinit, ctor and data_tail share the .ctor ordering bucket so the linker keeps them in this order.
       - { start: 0x3D3E00, type: asm, name: sinit, linker_section_order: .ctor }  # C++ static initializers (__sinit_*)
       - [0x3DD820, ctor, ctor]        # constructor table, null-terminated, padded to 16

@@ -1,2 +1,6 @@
 // Symbol names for SLUS_210.50. Format: https://github.com/ethteck/splat/wiki/Adding-Symbols
 _start = 0x00100008; // type:func
+
+// D2: C++ constructor test (placeholder class name until the real one is known)
+__ct__12CUnk0028B700Fv = 0x0028B700; // type:func
+__vt__12CUnk0028B700 = 0x004DE1A0; // type:u32
