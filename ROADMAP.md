@@ -10,10 +10,10 @@ the approach changes.
 
 | Phase | Milestone | State | Updated | Notes |
 |---|---|---|---|---|
-| 1 Decomp | D0 Environment | done (boot test pending) | 2026-10-05 | Tools installed, build image works, ISO and ELF hashes verified. The PCSX2 boot test waits on a BIOS dump. |
-| 1 Decomp | D1 Matching build | **done** | 2026-10-05 | `tools/dock ninja` rebuilds `SLUS_210.50` byte-identical from splat assembly (8,948 functions, symbolic relocations). |
-| 1 Decomp | D2 Compiler and flags locked | blocked | | Needs the CodeWarrior PS2 compiler `mwccps2` 2.4.1.01 in `Burnout3_decomp/compilers/` |
-| 1 Decomp | D3 Map the binary | ready to start | | Needs no compiler, so it can run while D2 is blocked |
+| 1 Decomp | D0 Environment | **done** | 2026-10-05 | Tools installed, build image works, ISO and ELF hashes verified, PCSX2 boots the ISO. Ghidra project set up (see Machine state). |
+| 1 Decomp | D1 Matching build | **done** | 2026-10-05 | `tools/dock ninja` rebuilds `SLUS_210.50` byte-identical from splat assembly (8,948 functions, symbolic relocations). The rebuilt ELF boots in PCSX2 to the menu and into a race. |
+| 1 Decomp | D2 Compiler and flags locked | **ready to start** | 2026-10-05 | Compiler found: Version 2.4 Engineering Build 0017 (decomp.me `mwcps2-2.4-001213`) in `compilers/2.4.0-build0017/`. Its objects carry `.comment` = `MW MIPS C Compiler (2.4.1.01)`, the game's exact string. Matching real functions is the remaining proof. |
+| 1 Decomp | D3 Map the binary | ready to start | | Can run alongside D2 |
 | 1 Decomp | D4–D11 Decompile subsystems to C | not started | | 0 of 8,948 functions in C |
 | 2 Rust rewrite | R1–R6 | not started | | Starts when the Phase 1 gate passes |
 
@@ -40,14 +40,14 @@ Phase 2 starts only after **all** of Phase 1 is done and verified. It ports from
 | Item | State | Action needed |
 |---|---|---|
 | Burnout 3 ISO | `~/Desktop/ps2_games/Burnout 3 - Takedown (USA).iso`, hash verified | — |
-| PCSX2 | `~/Downloads/PCSX2-v2.4.0.app` | Move to `/Applications` |
-| BIOS | `~/Library/Application Support/PCSX2/bios/` is **empty** | Dump from your own PS2 console (needed for every runtime test) |
+| PCSX2 | `/Applications/PCSX2-v2.4.0.app` | — |
+| BIOS | SCPH-39001 (USA v1.60) in `~/Desktop/ps2_bios usa/SCPH-39001_BIOS_V7_USA_160_(NTSC)/`, which PCSX2's BIOS folder setting points at | — |
 | PINE | Off (`EnablePINE = false`, slot 28011) | Enable for Phase 2 trace capture |
 | Docker | Image `b3-build` (linux/amd64: binutils 2.42, wibo 1.2.0, objdiff-cli 3.8.2, splat 0.50.0) | — |
-| Rust | rustc 1.99 stable via Homebrew `rustup`, keg-only at `/opt/homebrew/opt/rustup/bin` | Add that directory to `PATH` |
-| Ghidra | 12.1.4 + OpenJDK 21 (Homebrew), ghidra-emotionengine-reloaded v2.1.38 installed | Enable the extension on first launch |
+| Rust | rustc 1.99 stable via Homebrew `rustup` (`/opt/homebrew/opt/rustup/bin`, on `PATH` via `~/.zshrc`) | — |
+| Ghidra | 12.1.4 + OpenJDK 21 (Homebrew), ghidra-emotionengine-reloaded v2.1.38 enabled. Project `Burnout3_decomp` (outside the repo) has `SLUS_210.50` imported as `r5900:LE:32:default`, with `gp = 0x4E8670`, a `bss` block `0x4E2680`–`0x1ECE9FF`, and `SECTION4` split into `0x100000`–`0x469DFF` (code), `vu_microcode` `0x469E00`–`0x483EFF` (not executable) and `data` `0x483F00`–`0x4E267F`. | — |
 | Decomp helpers | Python venv at `Burnout3_decomp/.venv`, objdiff GUI and m2c in `Burnout3_decomp/tools/bin/` (gitignored) | — |
-| Compiler | Not present | Supply `mwccps2` 2.4.1.01 for D2 |
+| Compiler | `Burnout3_decomp/compilers/2.4.0-build0017/` (gitignored): `mwccps2.exe`, `mwldps2.exe`, `asm_r5900_elf.exe`, `LMGR326B.DLL`. Runs under wibo. | — |
 
 ---
 
@@ -99,20 +99,20 @@ orig/ asm/ assets/ build/ compilers/   gitignored: your ELF, generated output, y
 ### Tooling
 | Purpose | Tool |
 |---|---|
-| Compiler | CodeWarrior PS2 `mwccps2` 2.4.1.01 (Windows), run through **wibo** in the linux/amd64 image. Wine is the fallback. Nearby versions get tested if the exact one can't be found. |
+| Compiler | CodeWarrior PS2 `mwccps2`, Version 2.4 Engineering Build 0017 (stamps objects `MW MIPS C Compiler (2.4.1.01)`, the game's string), run through **wibo** in the linux/amd64 image. Nearby versions get tested if some code won't match. |
 | Assemble and link | GNU binutils (`mips-linux-gnu-as -march=r5900`, `ld`, `objcopy`). `tools/elf.py rebuild` wraps the linked segment in the original ELF container. |
 | Split and disassemble | splat (`platform: ps2`, `compiler: MWCCPS2`) and spimdisasm (R5900: MMI, `lq`/`sq`, VU0 macro ops) |
 | Diff and progress | objdiff (macOS GUI and CLI reports), asm-differ, decomp-permuter, decomp.me scratches |
 | First-draft C | Ghidra 12.1.x + ghidra-emotionengine-reloaded, m2c. A planned sync script keeps Ghidra and `symbol_addrs.txt` names consistent. |
-| Runtime | PCSX2 2.x: boot the rebuilt ELF with your ISO as the disc. Debugger and PINE for spot checks. |
+| Runtime | PCSX2 2.x: `PCSX2 -elf build/SLUS_210.50 -- <ISO>` boots the rebuilt ELF with the disc inserted from the start. Debugger and PINE for spot checks. |
 | Reference | `librw` (open RenderWare 3.x reimplementation), the Reburn 3 forum (forum.mattkc.com), CodeBreaker addresses, and the tuning-menu labels compiled into the ELF. No proprietary SDKs are copied. |
 
 ### Milestones
 | ID | Milestone | Exit criterion | State |
 |---|---|---|---|
-| **D0** | Environment | Tools installed, image builds, ELF extracted and hashes verified, PCSX2 boots the ISO | done (boot pending) |
+| **D0** | Environment | Tools installed, image builds, ELF extracted and hashes verified, PCSX2 boots the ISO | **done** |
 | **D1** | Matching build | Section boundaries recovered. `ninja` builds `build/SLUS_210.50` entirely from generated assembly with SHA-1 `332be40d…`. | **done** |
-| D2 | Compiler and flags locked | At least 10 functions across at least 3 TUs byte-match: a leaf C function, float math, a C++ ctor/vtable, and a switch/jump table. Flags recorded in `configure.py`. | blocked on compiler |
+| D2 | Compiler and flags locked | At least 10 functions across at least 3 TUs byte-match: a leaf C function, float math, a C++ ctor/vtable, and a switch/jump table. Flags recorded in `configure.py`. | ready |
 | D3 | Map the binary | libsce, MW runtime/MSL, RenderWare 3.6 TUs (by `$Id`) and VU microcode labeled and fenced off. Game TU boundaries carved, `.data`/`.rodata` split. Progress reported per category (`game`/`rw`/`sce`/`msl`). | ready |
 | D4 | Core infrastructure | Memory/heaps, math (vector/matrix, VU0 paths), file I/O and streaming, the tuning-variable system (`VDB.XML` key hash), strings/localization | |
 | D5 | Main loop and game flow | Boot, main loop, game state machine, mode/stage loading, frontend flow | |
@@ -130,7 +130,7 @@ outward from core code. Within a milestone, work goes one translation unit at a 
 ### Risks and open questions
 | Risk / question | Mitigation |
 |---|---|
-| Getting the exact `mwccps2` 2.4.1.01 (proprietary) | You source it yourself, and it stays gitignored. Test nearby versions against D2 functions, and document the outcome. |
+| Is Build 0017 the exact compiler? | Its `.comment` string matches the game's exactly. D2 confirms it by matching real functions. If some patterns won't match, test nearby versions. The compiler stays gitignored. |
 | Section and TU boundaries had to be inferred from one merged segment | `_gp`, alignment padding, rodata/string clustering, RenderWare `$Id` strings, vtable/RTTI order. Refined in D3. |
 | GNU ld standing in for the MW linker | Match the load segment, then rebuild the container in `tools/elf.py`. Already proven in D1. |
 | R5900-specific code (MMI, VU0 macro, 128-bit loads/stores) | Keep it as inline asm where the original most likely was. Hand-decompile the rest. |
@@ -159,7 +159,7 @@ boot path and catch anything the hash can't, such as a wrong load procedure.
 | Check | How | State |
 |---|---|---|
 | Symbolic relocations | The generated assembly uses `jal`/`%hi`/`%lo`/`%gp_rel` symbol references, not hard-coded addresses (about 40k `jal`, 36k `%hi`, 11.7k `%gp_rel`) | **passing** |
-| Shift build | Insert padding early in `.text`, rebuild with the hash check disabled, and boot it in PCSX2. It must still reach the menu and load a race, which proves no address is baked in as a plain number. | to do (needs BIOS) |
+| Shift build | Insert padding early in `.text`, rebuild with the hash check disabled, and boot it in PCSX2. It must still reach the menu and load a race, which proves no address is baked in as a plain number. | to do |
 
 ### 3. Each decompiled function matches
 | Check | How | State |
@@ -169,13 +169,21 @@ boot path and catch anything the hash can't, such as a wrong load procedure.
 | No regressions | The SHA-1 check stays green after every function lands. A function that doesn't match stays in assembly. | from D2 |
 
 ### 4. It runs like the original
-All of these run the rebuilt `build/SLUS_210.50` in PCSX2 ("Boot ELF") with your Burnout 3 ISO as the disc. They need
-a BIOS dump.
+All of these run the rebuilt `build/SLUS_210.50` (no `.elf` extension; `build/SLUS_210.50.elf` is an unfinished
+intermediate file) with your ISO inserted from the start. Starting an ELF from PCSX2's menu boots without a disc, and
+the game stalls on a black screen because it loads its modules from `cdrom0:` at startup. Use:
+
+```bash
+/Applications/PCSX2-v2.4.0.app/Contents/MacOS/PCSX2 -elf ~/Desktop/GameMerge/Burnout3_decomp/build/SLUS_210.50 -- ~/Desktop/ps2_games/"Burnout 3 - Takedown (USA).iso"
+```
+
+In `~/Library/Application Support/PCSX2/logs/emulog.txt`, `Serial: SLUS-21050` must appear before
+`ELF Loading: host:…/build/SLUS_210.50`.
 
 | Check | Pass criterion | State |
 |---|---|---|
-| Boot | Reaches the title screen and main menu | to do |
-| Race | Loads a track and finishes a race. Boost, takedowns and crashes work. | to do |
+| Boot | Reaches the title screen and main menu | **passing** (2026-10-05) |
+| Race | Loads a track and finishes a race. Boost, takedowns and crashes work. | partial: a race loads and plays. Finishing one with boost, takedowns and crashes is still to check. |
 | Modes | Road Rage, Crash mode (pickups, Crashbreaker) and Eliminator each play through to their results screen | to do |
 | Save data | A memory-card save from the original loads in the rebuilt build, and the reverse | to do |
 | Side by side | The same savestate and input recording in the original and the rebuilt ELF give the same RAM at fixed frames (compared over PINE) | to do |
