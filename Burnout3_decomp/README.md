@@ -3,13 +3,15 @@
 **A matching decompilation of Burnout 3: Takedown (PS2, NTSC-U, SLUS-21050).**
 
 The goal is C/C++ source that the original compiler (Metrowerks CodeWarrior for PS2, `MW MIPS C Compiler 2.4.1.01`)
-builds into a byte-identical `SLUS_210.50`. The game is C++ on top of RenderWare 3.6 and Sony libsce. Game assets are
+builds into a byte-identical `SLUS_210.50`. The game is C++ on top of RenderWare 3.6, Sony libsce, EA DirtySock and Logitech's device libraries. Game assets are
 never in this repo. The rebuilt ELF runs in PCSX2 with your own disc providing them.
 
-> **Status:** D2 done. The compiler is identified (CodeWarrior 3.0.3, `-O4`), and 10 functions in 8 C/C++ files
-> compile to the original bytes and are linked in place of their assembly. The full build still reproduces the
-> original SHA-1, and the rebuilt ELF boots and runs in PCSX2. See
-> [../ROADMAP.md](../ROADMAP.md) for milestones and [docs/layout.md](docs/layout.md) for the memory layout.
+> **Status:** D2 done, D3 in progress. The compiler is identified (CodeWarrior 3.0.3,
+> `-O4 -str readonly -Cpp_exceptions off`), and 10 functions in 8 C/C++ files compile to the original bytes and are
+> linked in place of their assembly. The binary is mapped into game, RenderWare, libsce, runtime, DirtySock and
+> Logitech ranges, with progress per category in [PROGRESS.md](PROGRESS.md). The full build still reproduces the
+> original SHA-1, and the rebuilt ELF boots and runs in PCSX2. See [../ROADMAP.md](../ROADMAP.md) for milestones and
+> [docs/layout.md](docs/layout.md) for the memory layout.
 
 ## Supported build
 

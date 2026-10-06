@@ -13,6 +13,8 @@ Steps:
 
 import argparse
 import json
+import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -23,6 +25,7 @@ ORIG_ELF = Path("orig") / BASENAME
 ORIG_ROM = Path("orig") / f"{BASENAME}.rom"
 SPLAT_YAML = Path("assembly/splat/b3.yaml")
 ASM_DIR = Path("assembly/asm")
+ASSET_DIR = Path("assembly/assets")
 SRC_DIR = Path("c_cpp/src")
 BUILD = Path("build")
 
@@ -34,13 +37,16 @@ AS_FLAGS = "-EL -march=r5900 -mabi=eabi -G 0 -no-pad-sections -I assembly/includ
 # matches every D2 test, including the inline cvt.w.s float-to-int. See docs/compiler.md.
 MWCC = Path("compilers/3.0.3-020716/mwccps2.exe")
 # -O3 and -O4 produce identical code for every function tested so far; -O4 is the working choice.
-CFLAGS = "-O4"
+# -str readonly: the game's string literals sit in .rodata and are addressed with lui/addiu even when
+#   short (the default puts them in .data, and short ones in .sdata via $gp).
+# -Cpp_exceptions off: the binary has no .exceptix exception tables.
+CFLAGS = "-O4 -str readonly -Cpp_exceptions off"
 
 # C/C++ translation units, keyed by path under c_cpp/src/ (.c or .cpp) and assembly/asm/ (.s).
 #   linked: link the C object instead of the asm. Set only once objdiff shows 100%; the SHA-1 check
 #           then proves it in the full build.
-#   data:   carved data pieces this unit owns, mapped to the C object's section that replaces them
-#           (e.g. a switch's jump table in .rodata).
+#   data:   carved data pieces this unit owns (path under assembly/asm/, ending in .data or .rodata),
+#           mapped to the C object's section that replaces them (e.g. a switch's jump table).
 C_UNITS = {
     "d2/func_00131AA0": {"linked": True},
     "d2/func_00131CE0": {"linked": False},  # 98.75%: original computes a large offset in v0, not at
@@ -51,7 +57,7 @@ C_UNITS = {
     "d2/func_0013C910": {"linked": True},
     "d2/func_0014DD80": {"linked": True},
     "d2/func_0014E7E0": {"linked": True},
-    "d2/func_0014EC30": {"linked": True, "data": {"data/d2/func_0014EC30.data": ".rodata"}},
+    "d2/func_0014EC30": {"linked": True, "data": {"data/d2/func_0014EC30.rodata": ".rodata"}},
     "d2/func_0028B700": {"linked": True},
 }
 
@@ -83,6 +89,41 @@ def c_obj(unit: str) -> Path:
     return BUILD / SRC_DIR / f"{unit}.o"
 
 
+# Progress category of each unit, by the first part of its path (see docs/layout.md for the map).
+CATEGORIES = {
+    "game": ("game", "Burnout 3 game code"),
+    "d2": ("game", None),
+    "sinit": ("game", None),
+    "rw": ("rw", "RenderWare 3.6"),
+    "rwa": ("rwa", "RenderWare Audio (EE side)"),
+    "sce": ("sce", "Sony libsce"),
+    "runtime": ("runtime", "Runtime: crt0, Metrowerks C++ runtime, newlib libc/libm, libgcc"),
+    "ea": ("ea", "EA DirtySock"),
+    "lg": ("lg", "Logitech device libraries"),
+}
+
+
+def category(unit: str) -> str:
+    top = unit.split("/")[0]
+    if top not in CATEGORIES:
+        sys.exit(f"{unit}: no progress category for '{top}/' (add it to CATEGORIES)")
+    return CATEGORIES[top][0]
+
+
+def start_alignment(asm: Path) -> int:
+    """Alignment implied by the unit's original start address (16, 8 or 4).
+
+    GNU as gives every section 16-byte alignment, but library objects (built with ee-gcc) start on
+    8-byte boundaries; their asm objects get the smaller alignment so they land where they did."""
+    with open(ROOT / asm) as f:
+        for line in f:
+            m = re.match(r"\s*/\* [0-9A-F]+ ([0-9A-F]{8})", line)
+            if m:
+                vram = int(m.group(1), 16)
+                return 16 if vram % 16 == 0 else 8 if vram % 8 == 0 else 4
+    return 16
+
+
 def write_final_ld_script() -> None:
     """Copy splat's linker script, pointing each linked C unit at its C object instead of its asm.
 
@@ -97,7 +138,7 @@ def write_final_ld_script() -> None:
             sys.exit(f"{unit}: {old} not found in {LD_SCRIPT_SPLAT}; is it carved out in {SPLAT_YAML}?")
         script = script.replace(old, f"{c_obj(unit).as_posix()}(")
         for piece, section in cfg.get("data", {}).items():
-            old = f"{(BUILD / ASM_DIR / piece).as_posix()}.o(.data)"
+            old = f"{(BUILD / ASM_DIR / piece).as_posix()}.o({Path(piece).suffix})"
             if old not in script:
                 sys.exit(f"{unit}: data piece {old} not found in {LD_SCRIPT_SPLAT}")
             script = script.replace(old, f"{c_obj(unit).as_posix()}({section})")
@@ -116,6 +157,12 @@ def write_ninja(asm_files: list[Path]) -> None:
         "rule as",
         f"  command = {CROSS}as {AS_FLAGS} -o $out $in",
         "  description = AS $in",
+        "",
+        "rule as_aligned",
+        f"  command = {CROSS}as {AS_FLAGS} -o $out.tmp $in && {CROSS}objcopy "
+        "--set-section-alignment .text=$align --set-section-alignment .data=$align "
+        "--set-section-alignment .rodata=$align $out.tmp $out && rm $out.tmp",
+        "  description = AS $in (align $align)",
         "",
         "rule cc",
         f"  command = MWCIncludes=c_cpp/include wibo {MWCC} {CFLAGS} -c $in -o $out",
@@ -140,7 +187,11 @@ def write_ninja(asm_files: list[Path]) -> None:
     for s in asm_files:
         o = BUILD / s.with_suffix(".o")
         objs.append(o)
-        lines.append(f"build {o}: as {s}")
+        align = start_alignment(s)
+        if align == 16:
+            lines.append(f"build {o}: as {s}")
+        else:
+            lines += [f"build {o}: as_aligned {s}", f"  align = {align}"]
     for unit in C_UNITS:
         o = c_obj(unit)
         objs.append(o)
@@ -167,7 +218,7 @@ def write_objdiff(asm_files: list[Path]) -> None:
         entry = {
             "name": unit,
             "target_path": (BUILD / s.with_suffix(".o")).as_posix(),
-            "metadata": {"progress_categories": ["game" if unit in C_UNITS else "unsplit"]},
+            "metadata": {"progress_categories": [category(unit)]},
         }
         if unit in C_UNITS:
             entry["base_path"] = c_obj(unit).as_posix()
@@ -179,13 +230,7 @@ def write_objdiff(asm_files: list[Path]) -> None:
         "build_target": False,
         "build_base": True,
         "watch_patterns": ["*.c", "*.cpp", "*.h", "*.hpp", "*.s", "*.inc"],
-        "progress_categories": [
-            {"id": "unsplit", "name": "Not yet split into translation units"},
-            {"id": "game", "name": "Burnout 3 game code"},
-            {"id": "rw", "name": "RenderWare 3.6"},
-            {"id": "sce", "name": "Sony libsce"},
-            {"id": "msl", "name": "Metrowerks runtime / MSL"},
-        ],
+        "progress_categories": [{"id": cid, "name": name} for cid, name in CATEGORIES.values() if name],
         "units": units,
     }
     (ROOT / "objdiff.json").write_text(json.dumps(config, indent=2) + "\n")
@@ -204,6 +249,10 @@ def main() -> None:
         sys.exit(f"missing {MWCC}: C units need the CodeWarrior compiler (see README.md)")
 
     if not args.no_split:
+        # splat neither deletes files of units that were renamed nor rewrites existing binary pieces, so the
+        # generated folders start empty on every split.
+        for generated in (ASM_DIR, ASSET_DIR):
+            shutil.rmtree(ROOT / generated, ignore_errors=True)
         run([sys.executable, "-m", "splat", "split", str(SPLAT_YAML)])
 
     asm_files = sorted(p.relative_to(ROOT) for p in (ROOT / ASM_DIR).rglob("*.s"))
